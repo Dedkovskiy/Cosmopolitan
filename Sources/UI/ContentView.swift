@@ -5,6 +5,7 @@ struct ContentView: View {
     @StateObject var m = Model()
     @State var newName = ""
     @State var confirmDelete = false
+    @State var uninstallExe: String? = nil
     @State var optExe: String? = nil
     @State var optText = ""
     @State var showD3DM = false
@@ -119,6 +120,9 @@ struct ContentView: View {
                                 Button("Report result to Highball…") { m.reportToHighball(p) }
                                 Button("Compress on disk (APFS)…") { m.compressGame(p) }
                                 Button("Create Dock shortcut") { m.makeShortcut(p) }
+                                Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: p)]) }
+                                Divider()
+                                Button("Uninstall…", role: .destructive) { uninstallExe = p }
                             }
                         }
                     }.padding(8)
@@ -162,6 +166,9 @@ struct ContentView: View {
         .confirmationDialog("Delete bottle \"\(m.selected)\" and everything in it?", isPresented: $confirmDelete) {
             Button("Delete", role: .destructive) { m.deleteBottle() }
         }
+        .confirmationDialog("Uninstall \"\(uninstallExe.map(appName) ?? "")\"?", isPresented: Binding(get: { uninstallExe != nil }, set: { if !$0 { uninstallExe = nil } }), titleVisibility: .visible) {
+            Button("Uninstall", role: .destructive) { if let e = uninstallExe { m.uninstall(e) }; uninstallExe = nil }
+        } message: { Text(uninstallExe.map { m.uninstallKind($0) + ". Saves and settings in the bottle stay." } ?? "") }
         .onOpenURL { url in   // §7.7 Shortcuts / Siri: a Shortcut that opens cosmopolitan://launch?name=Steam (Siri runs Shortcuts by name)
             guard url.scheme == "cosmopolitan", url.host == "launch", let q = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "name" })?.value else { return }
             if let p = m.programs.first(where: { appName($0).localizedCaseInsensitiveCompare(q) == .orderedSame }) ?? m.programs.first(where: { appName($0).localizedCaseInsensitiveContains(q) }) { m.launch(p) }
