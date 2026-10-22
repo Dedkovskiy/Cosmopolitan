@@ -52,6 +52,7 @@ import SwiftUI
     @Published var driverUpdates = ""   // "dxmt v0.81 available" — filled by the weekly check, applied by Update…
     @Published var readiness: [String: Needs] = [:]   // per-program pre-verification (tile light + tooltip)
     var lastMemWarn = Date.distantPast                 // memory advisor rate limit
+    @Published var artVersion = 0                      // bumped when cover art or playtime files change, so tiles redraw
     var pauseObservers: [NSObjectProtocol] = []        // pause-in-background observers, one per armed game
     @Published var autostartSteam = false              // AUTOSTART_STEAM=1 in cosmopolitan.env: Steam comes up with the app, with the bottle's drivers
     @Published var batterySaver = false   // 60 fps cap in D3DMetal and DXMT, DXMT renders at 2/3 and MetalFX-upscales: far less GPU work on battery
@@ -201,8 +202,9 @@ import SwiftUI
             where !p.isEmpty && !found.contains(p) && FileManager.default.fileExists(atPath: p) { found.append(p) }
         for p in found where icons[p] == nil { icons[p] = exeIcon(p) }
         programs = found.sorted { ($0 as NSString).lastPathComponent.lowercased() < ($1 as NSString).lastPathComponent.lowercased() }
-        verifyAll()
+        verifyAll(); fetchArt()
         if watchedBottle != selected { watchBottle(); excludeFromBackups(selected) }
+        for b in unpluggedBottles() { log += "Bottle \(b) is on a drive that is not connected; it reappears when the drive is plugged in.\n" }
     }
 
     // Run any executable; `block` locks the UI buttons until it exits.

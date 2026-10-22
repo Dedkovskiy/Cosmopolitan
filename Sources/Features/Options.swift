@@ -24,6 +24,7 @@ extension Model {
     # FOCUS_SHORTCUT=Gaming         run this macOS Shortcut when the game starts and when it exits
     # PAUSE_IN_BACKGROUND=1         suspend the game while another app is in front (single-player only)
     # ROSETTA_ADVERTISE_AVX=0       force AVX off/on for this program (auto-detected otherwise)
+    # D3DM_MAX_FPS=60               frame-rate cap (D3DMetal); DXMT_CONFIG=d3d11.preferredMaxFrameRate=60 for DXMT
     # WINEDLLOVERRIDES=xaudio2_7=n  any other KEY=VALUE becomes an environment variable
 
     """
