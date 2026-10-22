@@ -7,7 +7,7 @@ REPO="$TESTENV_REPO"
 # 1. The code: no "newest" Sikarugir lookups, no template download outside the pinned setup step, D3DMetal never copied from a template.
 grep -rn "NewestVersion.txt\|EngineList.txt" "$REPO/Sources" && fail "code still looks up the newest Sikarugir template or engine"
 [[ $(grep -rln "Sikarugir-App/Template/releases" "$REPO/Sources") == "$REPO/Sources/Core/Components.swift" ]] || fail "template URL used outside the pins"
-grep -rn "renderer/d3dmetal" "$REPO/Sources" | grep -v "exclude\|Components.swift" && fail "something copies d3dmetal from a template"
+grep -rn "SharedSupport/renderer/d3dmetal\|SharedSupport/renderer/apple_gptk" "$REPO/Sources" && fail "something copies d3dmetal from a template"
 grep -rn -i "Cosmopolitan-testrun\|d3dmetal-old" "$REPO/Sources" "$REPO/scripts" "$REPO/Resources" "$REPO/tests" --exclude=pins.sh && fail "code references the Sikarugir D3DMetal copy in ~/Cosmopolitan-testrun-2032"
 print "ok: no newest-version lookups; the template URL exists only as a pin; d3dmetal only appears in the extraction exclude; nothing references the Sikarugir D3DMetal copy"
 
