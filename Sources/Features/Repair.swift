@@ -7,10 +7,11 @@ extension Model {
         busy = true
         let r = "\(bottlesDir)/\(selected)"
         snapshot("before Repair")
-        log += "Repair: stopping all Wine processes…\n"
-        // wineserver -k/-w act on $WINEPREFIX's server; without it they'd silently target ~/.wine.
+        log += "Repair: stopping this bottle's Wine processes…\n"
+        // wineserver -k/-w act on $WINEPREFIX's server only; without WINEPREFIX they'd target ~/.wine. Other bottles, other Wine builds
+        // and Mac processes are never touched (this used to pkill every ".exe" command line and every wineserver on the Mac).
         let ws = "env WINEPREFIX='\(r)' '\((wineBin as NSString).deletingLastPathComponent)/wineserver'"
-        _ = sh("\(ws) -k; sleep 1; pkill -9 -f '\\.exe' ; pkill -9 -f wineserver; true")
+        _ = sh("\(ws) -k; \(ws) -w; true")
         var cmds = [["reg", "add", "HKLM\\System\\CurrentControlSet\\Services\\winebus", "/v", "DisableHidraw", "/t", "REG_DWORD", "/d", "1", "/f"],
                     ["reg", "add", "HKCU\\Control Panel\\Desktop", "/v", "LogPixels", "/t", "REG_DWORD", "/d", "96", "/f"],
                     ["reg", "add", "HKCU\\Software\\Wine\\Fonts", "/v", "LogPixels", "/t", "REG_DWORD", "/d", "96", "/f"]]

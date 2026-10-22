@@ -17,6 +17,8 @@ func pgrepPattern(_ name: String) -> String { name.isEmpty ? name : "[\(name.pre
     let d = (p.standardOutput as? Pipe)?.fileHandleForReading.readDataToEndOfFile() ?? Data()
     done.wait(); return d
 }
+// Canonical path (symlinks and ".." resolved; keeps /private, which NSString path APIs strip from /private/tmp). The path itself if it doesn't exist.
+func realPath(_ p: String) -> String { guard let r = realpath(p, nil) else { return p }; defer { free(r) }; return String(cString: r) }
 // Run a shell command and return its output; usable from any thread.
 func shell(_ cmd: String) -> String {
     let p = Process(); p.executableURL = URL(fileURLWithPath: "/bin/sh"); p.arguments = ["-c", cmd]

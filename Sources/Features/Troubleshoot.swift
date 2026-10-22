@@ -3,6 +3,14 @@ import SwiftUI
 extension Model {
     // Troubleshooting: every check is something that actually broke while bringing Steam up on this engine.
     func sh(_ cmd: String) -> String { shell(cmd) }
+    // The wineserver serving a prefix holds /tmp/.wine-<uid>/server-<dev>-<inode>/lock, named after the prefix folder's device and inode.
+    nonisolated func prefixServer(_ prefix: String) -> (pid: Int32, path: String)? {
+        guard let a = try? FileManager.default.attributesOfItem(atPath: prefix),
+              let dev = (a[.systemNumber] as? NSNumber)?.uint64Value, let ino = (a[.systemFileNumber] as? NSNumber)?.uint64Value else { return nil }
+        let lock = String(format: "/tmp/.wine-%u/server-%llx-%llx/lock", getuid(), dev, ino)
+        guard FileManager.default.fileExists(atPath: lock), let pid = Int32(shell("lsof -t '\(lock)' 2>/dev/null | head -1")) else { return nil }
+        return (pid, shell("ps -o comm= -p \(pid)"))
+    }
     func regSection(_ file: String, _ key: String) -> String {
         let reg = (try? String(contentsOfFile: "\(bottlesDir)/\(selected)/\(file)", encoding: .utf8)) ?? ""
         return reg.components(separatedBy: "[\(key.replacingOccurrences(of: "\\", with: "\\\\"))]").dropFirst().first?.components(separatedBy: "\n[").first ?? ""
@@ -34,10 +42,12 @@ extension Model {
                 check(regSection("user.reg", "Software\\Wine\\AppDefaults\\steamwebhelper.exe\\DllOverrides").contains("\"dxgi\"=\"builtin\""), "steamwebhelper uses builtin dxgi (no crash)", "Repair")
             }
         }
-        let servers = sh("ps -axo command | grep -c '[w]ineserver'")
-        check(servers == "0" || servers == "1", "One wineserver (\(servers) running)", "two Wine builds share a prefix, or orphans; Repair kills all Wine processes")
-        let foreign = sh("ps -axo comm= | grep -v -F '\(engine)' | grep -c 'wine.*-preloader$\\|/wineserver$\\|/wine64$\\|/wine$'")   // binary paths only, not shell command lines
-        check(foreign == "0", "No other Wine build running", "quit CrossOver/Whisky/other Wine first (version mismatch)")
+        // Only this bottle's server matters: other bottles and other Wine builds running their own prefixes are normal.
+        if !selected.isEmpty {
+            if let s = prefixServer("\(bottlesDir)/\(selected)") {
+                check(realPath(s.path).hasPrefix(realPath(engine) + "/"), "This bottle's Wine server is Cosmopolitan's engine (pid \(s.pid))", "another Wine build is running this bottle; quit it, or Repair (stops only this bottle)")
+            } else { out += "• This bottle's Wine server isn't running\n" }
+        }
         check(!nativeControllers().isEmpty, "Game controller connected and turned on", "press PS/Xbox button or pair it in Bluetooth settings; Wine only sees it once macOS does")
         let free = sh("df -g \"$HOME\" | awk 'NR==2{print $4}'")
         check((Int(free) ?? 0) > 10, "Disk space (\(free) GB free)", "free up space; Steam downloads fail silently when full")
