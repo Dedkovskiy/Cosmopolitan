@@ -4,8 +4,10 @@ extension Model {
     // Safe, idempotent fixes for the ✗ lines above.
     func repair() {
         guard !selected.isEmpty else { return }
-        busy = true
         let r = "\(bottlesDir)/\(selected)"
+        guard let lock = PrefixLock(r, purpose: "repair") else { log += "Repair: another repair is already running on \(selected) (\(PrefixLock.holder(r))).\n"; return }
+        defer { withExtendedLifetime(lock) {} }   // held until Repair returns; released by the kernel if the app dies
+        busy = true
         snapshot("before Repair")
         log += "Repair: stopping this bottle's Wine processes…\n"
         // wineserver -k/-w act on $WINEPREFIX's server only; without WINEPREFIX they'd target ~/.wine. Other bottles, other Wine builds
@@ -23,6 +25,11 @@ extension Model {
         }
         let env = launchEnv(selected).map { "\($0.key)='\($0.value)'" }.joined(separator: " ")
         for c in cmds { _ = sh("env \(env) '\(wineBin)' " + c.map { "'\($0)'" }.joined(separator: " ") + " >/dev/null 2>&1") }
+        // Test build only: hold the lock with this bottle's wineserver (started by the reg commands) alive, so tests can kill the app here.
+        if isTestBuild, let s = Double(ProcessInfo.processInfo.environment["COSMO_TEST_HOLD_LOCK_SECS"] ?? "") {
+            _ = sh("env \(env) '\(wineBin)' cmd /c ping -n \(Int(s) + 30) 127.0.0.1 >/dev/null 2>&1 &")   // a Wine child that outlives the app
+            Thread.sleep(forTimeInterval: s)
+        }
         _ = sh("\(ws) -w")   // wait for the server to exit = registry flushed to disk
         busy = false
         log += "Repair done. Run Troubleshoot again to confirm, then relaunch your program.\n"
