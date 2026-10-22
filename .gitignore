@@ -1,0 +1,9 @@
+# Build output
+Cosmopolitan.app/
+dist/
+
+# Apple D3DMetal (Game Porting Toolkit) — proprietary, must never be committed
+D3DMetal.framework/
+libd3dshared.dylib
+d3dmetal/
+*.d3dmetal
