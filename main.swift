@@ -270,6 +270,8 @@ func exeIcon(_ path: String) -> NSImage? {
     let templates = ["auto", "win11", "win10", "win7", "winxp", "win98", "win95"]
     @Published var driverUpdates = ""   // "dxmt v0.81 available" — filled by the weekly check, applied by Update…
     @Published var readiness: [String: Needs] = [:]   // per-program pre-verification (tile light + tooltip)
+    var lastMemWarn = Date.distantPast                 // memory advisor rate limit
+    var pauseObservers: [NSObjectProtocol] = []        // pause-in-background observers, one per armed game
     @Published var autostartSteam = false              // AUTOSTART_STEAM=1 in cosmopolitan.env: Steam comes up with the app, with the bottle's drivers
     @Published var batterySaver = false   // 60 fps cap in D3DMetal and DXMT, DXMT renders at 2/3 and MetalFX-upscales: far less GPU work on battery
     @Published var metalFX = false        // D3DM_ENABLE_METALFX: a game's DLSS menu option becomes MetalFX temporal upscaling (D3DMetal, macOS 26+)
@@ -1299,7 +1301,6 @@ extension Model {
     }
 
     // §8.8 Memory-pressure advisor: while a game runs, warn (at most every 10 min) when macOS is low on memory or swapping hard.
-    var lastMemWarn = Date.distantPast
     func memoryAdvisor() {
         guard Date().timeIntervalSince(lastMemWarn) > 600, !sh("ps -axo command= | grep -c 'steamapps.common\\|Program Files.*\\.exe'").hasPrefix("0") else { return }
         let level = Int(sh("sysctl -n kern.memorystatus_level")) ?? 100
@@ -1326,7 +1327,6 @@ extension Model {
     }
     // §9.9 Pause in background: Options PAUSE_IN_BACKGROUND=1 suspends the game's process while another app is frontmost (SIGSTOP/SIGCONT).
     // Refused for anti-cheat and online-flagged games; the game must be a single-player title you tested this with.
-    var pauseObservers: [NSObjectProtocol] = []
     func pauseInBackground(_ exe: String, anticheat: Bool) {
         guard options(exe)["PAUSE_IN_BACKGROUND"] == "1" else { return }
         guard !anticheat else { log += "Pause in background ignored for \(appName(exe)): anti-cheat present.\n"; return }
@@ -1336,7 +1336,7 @@ extension Model {
             guard let self, let app = n.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else { return }
             let pids = sh("pgrep -f '\(name)'").split(separator: "\n").joined(separator: " ")
             guard !pids.isEmpty else { return }
-            let isGame = app.executableURL?.path.contains("/wswine.bundle/") == true || app.localizedName == self.appName(exe)
+            let isGame = app.executableURL?.path.contains("/wswine.bundle/") == true || app.localizedName == appName(exe)
             _ = sh("kill -\(isGame ? "CONT" : "STOP") \(pids) 2>/dev/null")
         }
         pauseObservers.append(o); log += "Pause in background armed for \(appName(exe)).\n"
