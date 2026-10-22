@@ -23,6 +23,15 @@ Nothing here bypasses or disables anti-cheat, ever. Games are badged honestly:
 "Online won't work (Easy Anti-Cheat)" or "Kernel anti-cheat — will not run". For the
 latter, the app points to cloud gaming.
 
+## Layout
+
+- `Sources/Core/` — paths, environment, licensing gate, drivers, PE parsing, shell helpers
+- `Sources/Model/` — the `Model` class (state, bottles, processes, launching)
+- `Sources/Features/` — one file per feature, each an `extension Model` (launch check, anti-cheat, community data, D3DMetal, troubleshoot, triage, updates, snapshots, AVX, imports, …)
+- `Sources/UI/` — `ContentView` and one file per sheet under `UI/Sheets/`
+- `Sources/App/` — entry point, Sparkle updater, command-line modes
+- `scripts/build.sh` (app + dSYM), `scripts/release.sh` (zip, symbols, signed appcast, GitHub release), `scripts/dist.sh` (offline bundle without D3DMetal)
+
 ## Credits
 
 Wine and the Sikarugir Wine builds, DXMT (3Shain), DXVK/D9VK (doitsujin, Gcenx),

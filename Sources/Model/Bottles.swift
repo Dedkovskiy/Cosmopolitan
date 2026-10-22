@@ -1,0 +1,48 @@
+import SwiftUI
+
+extension Model {
+    func createBottle(_ name: String, then: (@MainActor () -> Void)? = nil) {
+        let t = template == "auto" ? "win10" : template
+        try? FileManager.default.createDirectory(atPath: "\(bottlesDir)/\(name)", withIntermediateDirectories: true)
+        // mscoree/mshtml off: skips Mono/Gecko download prompts during creation.
+        wine(name, ["wineboot", "-u"], env: ["WINEDLLOVERRIDES": "mscoree,mshtml="]) {
+            // Controllers via SDL as XInput gamepads (raw HID only reaches DirectInput, and Steam Input can't drive it under Wine).
+            self.wine(name, ["reg", "add", "HKLM\\System\\CurrentControlSet\\Services\\winebus", "/v", "DisableHidraw", "/t", "REG_DWORD", "/d", "1", "/f"]) {
+                self.wine(name, ["winecfg", "-v", t]) {
+                    // Restricted by default: no Z: (whole Mac) drive. Programs see C: only. FULL_DISK=1 in cosmopolitan.env restores Z: for a bottle.
+                    try? FileManager.default.removeItem(atPath: "\(bottlesDir)/\(name)/dosdevices/z:")
+                    self.log += "Bottle \(name): restricted to C: (no access to the Mac's files). Add FULL_DISK=1 to its cosmopolitan.env to widen it.\n"
+                    then?() } } }
+    }
+
+    func deleteBottle() {   // to Trash, so it's recoverable
+        try? FileManager.default.trashItem(at: URL(fileURLWithPath: "\(bottlesDir)/\(selected)"), resultingItemURL: nil)
+        log += "Moved \(selected) to Trash.\n"; refresh()
+    }
+
+    // Backup = instant APFS clone (no extra disk space until files change).
+    func backupBottle() {
+        let f = DateFormatter(); f.dateFormat = "yyyyMMdd-HHmm"
+        exec("/bin/cp", ["-cR", "\(bottlesDir)/\(selected)", "\(bottlesDir)/\(selected)-backup-\(f.string(from: Date()))"])
+    }
+
+    func setRetina(_ on: Bool) {
+        wine(selected, ["reg", "add", "HKCU\\Software\\Wine\\Mac Driver", "/v", "RetinaMode", "/t", "REG_SZ", "/d", on ? "y" : "n", "/f"])
+    }
+
+    func archiveBottle() {
+        let p = NSSavePanel(); p.nameFieldStringValue = selected + ".tar"
+        if p.runModal() == .OK, let u = p.url { exec("/usr/bin/tar", ["-cf", u.path, "-C", bottlesDir, selected]) }
+    }
+
+    func restoreBottle() {
+        let p = NSOpenPanel()
+        guard p.runModal() == .OK, let u = p.url else { return }
+        var name = u.deletingPathExtension().lastPathComponent
+        if bottles.contains(name) { name += "-restored" }
+        // extract to a hidden temp dir, then rename the single top folder to the target name
+        exec("/bin/sh", ["-c", "set -e; t=$(mktemp -d \"$1/.restore.XXXX\"); tar -xf \"$2\" -C \"$t\"; mv \"$t\"/* \"$1/$3\"; rmdir \"$t\"", "sh", bottlesDir, u.path, name])
+    }
+
+    // Steam's CEF UI renders black under Wine unless the sandbox and GPU path are off.
+}

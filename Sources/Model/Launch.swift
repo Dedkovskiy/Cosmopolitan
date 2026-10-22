@@ -1,0 +1,121 @@
+import SwiftUI
+
+extension Model {
+    func extraArgs(_ exe: String) -> [String] {
+        (exe as NSString).lastPathComponent.lowercased() == "steam.exe" ? ["-no-cef-sandbox", "-cef-disable-gpu", "-cef-disable-gpu-compositing", "-cef-disable-d3d11"] : []
+    }
+
+    func winPath(_ exe: String) -> String {
+        "C:" + exe.components(separatedBy: "/drive_c")[1].replacingOccurrences(of: "/", with: "\\")
+    }
+
+    // Dock shortcut: a tiny .app that runs the program in its bottle. Drag it to the Dock.
+    // Dock label: macOS names the process after its executable file. A symlink is forgotten (Wine re-execs through the real path) and a
+    // bundle path breaks Steam's first window, but a *copy* of the 27 KB loader named after the program, kept in the engine's bin folder so
+    // libraries resolve, survives the re-exec — the CrossOver trick. Children inherit it, so Steam's helpers are "Steam" too.
+    func loaderNamed(_ exe: String) -> String {
+        let name = appName(exe).replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
+        guard name != "wine", !name.isEmpty else { return wineBin }
+        let copy = (wineBin as NSString).deletingLastPathComponent + "/" + name, fm = FileManager.default
+        let fresh = (try? fm.attributesOfItem(atPath: copy))?[.modificationDate] as? Date ?? .distantPast
+        let src = (try? fm.attributesOfItem(atPath: wineBin))?[.modificationDate] as? Date ?? .distantPast
+        if fresh < src { try? fm.removeItem(atPath: copy); try? fm.copyItem(atPath: wineBin, toPath: copy) }   // refresh after an engine update
+        return fm.fileExists(atPath: copy) ? copy : wineBin
+    }
+    func makeShortcut(_ exe: String, reveal: Bool = true) {
+        let name = appName(exe), fm = FileManager.default
+        let app = NSHomeDirectory() + "/Applications/Cosmopolitan Apps/\(name).app"
+        try? fm.removeItem(atPath: app)
+        try? fm.createDirectory(atPath: app + "/Contents/MacOS", withIntermediateDirectories: true)
+        try? fm.createDirectory(atPath: app + "/Contents/Resources", withIntermediateDirectories: true)
+        let (win, args) = launchCmd(exe)
+        let exports = launchEnv(selected).map { "export \($0.key)='\($0.value)'" }.joined(separator: "\n")
+        let script = "#!/bin/sh\nps -axo command | grep -v grep | grep -q -F '\(winPath(exe))' && exit 0\n\(exports)\nexec '\(loaderNamed(exe))' '\(win)' \(args.joined(separator: " "))\n"
+        fm.createFile(atPath: app + "/Contents/MacOS/launch", contents: Data(script.utf8), attributes: [.posixPermissions: 0o755])
+        var icon = ""
+        if let t = icons[exe]?.tiffRepresentation, let png = NSBitmapImageRep(data: t)?.representation(using: .png, properties: [:]) {
+            let tmp = app + "/Contents/Resources/icon.png"
+            try? png.write(to: URL(fileURLWithPath: tmp))
+            let sips = Process(); sips.executableURL = URL(fileURLWithPath: "/usr/bin/sips")
+            sips.arguments = ["-s", "format", "icns", tmp, "--out", app + "/Contents/Resources/icon.icns"]
+            sips.standardOutput = FileHandle.nullDevice; sips.standardError = FileHandle.nullDevice
+            try? sips.run(); sips.waitUntilExit()
+            try? fm.removeItem(atPath: tmp)
+            icon = "<key>CFBundleIconFile</key><string>icon</string>"
+        }
+        let plist = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><plist version=\"1.0\"><dict><key>CFBundleName</key><string>\(name)</string><key>CFBundleExecutable</key><string>launch</string><key>CFBundleIdentifier</key><string>local.cosmopolitan.\(name.filter { $0.isLetter || $0.isNumber })</string><key>CFBundlePackageType</key><string>APPL</string><key>LSApplicationCategoryType</key><string>public.app-category.games</string>\(icon)</dict></plist>"   // games category: macOS Game Mode can engage for fullscreen play
+        try? plist.write(toFile: app + "/Contents/Info.plist", atomically: true, encoding: .utf8)
+        let cs = Process(); cs.executableURL = URL(fileURLWithPath: "/usr/bin/codesign"); cs.arguments = ["--force", "--sign", "-", app]
+        try? cs.run(); cs.waitUntilExit()
+        guard reveal else { return }
+        log += "Shortcut created: \(app) — drag it to the Dock.\n"
+        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: app)])
+    }
+
+    // Automatic: no bottle yet -> create one named after the installer, then run it.
+    func install(_ url: URL) {
+        let path = url.path
+        let go: (String) -> Void = { b in
+            self.selected = b
+            if path.lowercased().hasSuffix(".msi") { self.wine(b, ["msiexec", "/i", "Z:" + path.replacingOccurrences(of: "/", with: "\\")]) }
+            else { let need = self.prepare(path); self.start(need, path, [], exe: path, block: true) }   // installers get the same checks as programs
+        }
+        if selected.isEmpty {
+            let name = url.deletingPathExtension().lastPathComponent.replacingOccurrences(of: " ", with: "_")
+            createBottle(name) { go(name) }
+        } else { go(selected) }
+    }
+
+    // Launch each program once: skip if its Windows path is already a running process.
+    func launch(_ exe: String) {
+        let win = winPath(exe)
+        let ps = Process(); ps.executableURL = URL(fileURLWithPath: "/bin/ps"); ps.arguments = ["-axo", "command"]
+        let out = Pipe(); ps.standardOutput = out
+        try? ps.run()
+        let list = String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        if list.components(separatedBy: "\n").contains(where: { $0.hasPrefix(win) }) {
+            log += "\((exe as NSString).lastPathComponent) is already running.\n"; return
+        }
+        let (cmd, args) = launchCmd(exe)
+        log += powerHints()
+        let need = prepare(exe)
+        // A Steam game inherits Steam's environment, so a driver change OR per-game env from Options… needs Steam restarted with it.
+        start(need, cmd, args, exe: exe, restartSteam: steamGames[exe] != nil && (need.drivers != nil || !need.env.isEmpty) && list.contains("C:\\Program Files (x86)\\Steam\\steam.exe"))
+    }
+
+    // Launch check + the registry it implies (overrides, old-era desktop, Windows version). Returns what start() needs.
+    func prepare(_ exe: String) -> Needs {
+        let need = launchNeeds(exe)
+        log += need.note
+        // Community DLL overrides go into the bottle registry (idempotent, same place protonfixes puts them).
+        let regEnv = launchEnv(selected).map { "\($0.key)='\($0.value)'" }.joined(separator: " ")
+        func reg(_ key: String, _ name: String, _ value: String) { _ = sh("env \(regEnv) '\(wineBin)' reg add '\(key)' /v '\(name)' /t REG_SZ /d '\(value)' /f >/dev/null 2>&1") }
+        if !need.overrides.isEmpty {
+            let mark = "\(bottlesDir)/\(selected)/options/.overrides-\((exe as NSString).lastPathComponent)"
+            if !FileManager.default.fileExists(atPath: mark) { snapshot("before community DLL overrides for \((exe as NSString).lastPathComponent)"); try? FileManager.default.createDirectory(atPath: (mark as NSString).deletingLastPathComponent, withIntermediateDirectories: true); FileManager.default.createFile(atPath: mark, contents: nil) }
+            for (dll, mode) in need.overrides { reg("HKCU\\Software\\Wine\\DllOverrides", dll, mode) }
+        }
+        // Old program: per-exe virtual desktop + Retina off (AppDefaults keys apply however the exe is started, also via Steam).
+        // §9.1 Mouse capture for camera-heavy games: Options MOUSE_CAPTURE=1 → Wine keeps the cursor inside the game window.
+        if options(exe)["MOUSE_CAPTURE"] == "1" { reg("HKCU\\Software\\Wine\\AppDefaults\\\((exe as NSString).lastPathComponent)\\DirectInput", "MouseWarpOverride", "force") }
+        if need.desktop {
+            // §7.6 Notch-aware: the virtual desktop never exceeds the area below the notch (safe area), so nothing hides behind it.
+            let scr = NSScreen.main, safeW = Int((scr?.frame.width ?? 1280) - (scr?.safeAreaInsets.left ?? 0) - (scr?.safeAreaInsets.right ?? 0)), safeH = Int((scr?.frame.height ?? 960) - (scr?.safeAreaInsets.top ?? 0) - (scr?.safeAreaInsets.bottom ?? 0))
+            let want = exeEra(exe).kind == "win16" ? (1024, 768) : (1280, 960)
+            let e = (exe as NSString).lastPathComponent, size = "\(min(want.0, safeW))x\(min(want.1, safeH))"
+            reg("HKCU\\Software\\Wine\\Explorer\\Desktops", "Cosmopolitan", size)
+            reg("HKCU\\Software\\Wine\\AppDefaults\\\(e)\\Explorer", "Desktop", "Cosmopolitan")
+            reg("HKCU\\Software\\Wine\\AppDefaults\\\(e)\\Mac Driver", "RetinaMode", "n")
+        }
+        if !need.winver.isEmpty { reg("HKCU\\Software\\Wine\\AppDefaults\\\((exe as NSString).lastPathComponent)", "Version", need.winver) }
+        if let t = tuneUnreal(exe) { log += t }
+        // Filesystem access: restricted bottles have no Z:. FULL_DISK=1 in cosmopolitan.env restores it (with a warning); removing the line takes it away again.
+        let z = "\(bottlesDir)/\(selected)/dosdevices/z:", full = launchEnvRaw()["FULL_DISK"] == "1"
+        if full, !FileManager.default.fileExists(atPath: z) { snapshot("before enabling full disk access"); try? FileManager.default.createSymbolicLink(atPath: z, withDestinationPath: "/"); log += "⚠ \(selected): full disk access enabled (FULL_DISK=1) — programs in this bottle can read and write your files.\n" }
+        if !full, FileManager.default.fileExists(atPath: z), launchEnvRaw()["FULL_DISK"] == "0" { try? FileManager.default.removeItem(atPath: z); log += "\(selected): full disk access removed.\n" }
+        return need
+    }
+
+    // Unreal games: once their own settings file exists, turn VSync off (a frame-rate killer under translation) and start the three
+    // heaviest scalability groups at Medium if the game hasn't set any. One-shot, marked in the file; the in-game menu stays in charge afterwards.
+}

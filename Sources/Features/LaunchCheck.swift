@@ -1,0 +1,130 @@
+import SwiftUI
+
+extension Model {
+    struct Needs { var drivers: [String]?; var verbs: [String]; var note: String; var overrides: [(String, String)] = []; var env: [String: String] = [:]; var args: [String] = []; var desktop = false; var winver = ""; var status: Color = .green; var dx12 = false; var anticheat: (Color, String)? = nil }
+    func launchNeeds(_ exe: String) -> Needs {
+        let name = (exe as NSString).lastPathComponent, dir = (exe as NSString).deletingLastPathComponent, fm = FileManager.default
+        var imps = exeImports(exe)
+        // Unreal games ship a tiny bootstrap exe; the real one is <Game>/Binaries/Win64/<Game>-Win64-Shipping.exe. Inspect that instead.
+        if !imps.contains(where: { $0.hasPrefix("d3d") || $0 == "vulkan-1.dll" || $0 == "opengl32.dll" }), fm.fileExists(atPath: dir + "/Engine"),   // Unreal install root only
+           let en = fm.enumerator(atPath: dir), let real = en.compactMap({ $0 as? String }).first(where: { $0.lowercased().hasSuffix("-shipping.exe") || ($0.contains("/Binaries/Win64/") && $0.lowercased().hasSuffix(".exe") && !$0.hasPrefix("Engine/")) }) {
+            imps = exeImports("\(dir)/\(real)")
+        }
+        // Unreal 5 loads its D3D12 RHI at runtime (no import) but ships the Agility SDK beside the exe: Binaries/Win64/D3D12/D3D12Core.dll.
+        if !imps.contains("d3d12.dll"), let en = fm.enumerator(atPath: dir) {
+            for case let p as String in en {   // stay inside this program: never descend into a Steam library or the Unreal Engine folder
+                if en.level > 4 || p.hasPrefix("Engine/") || p.hasPrefix("steamapps") { en.skipDescendants(); continue }
+                if p.hasSuffix("D3D12/D3D12Core.dll") { imps.append("d3d12.dll"); break }
+            }
+        }
+        let local = Set(((try? fm.contentsOfDirectory(atPath: dir)) ?? []).map { $0.lowercased() })
+        let sys = Set(((try? fm.contentsOfDirectory(atPath: "\(bottlesDir)/\(selected)/drive_c/windows/system32")) ?? []).map { $0.lowercased() })
+        let missing = imps.filter { !$0.hasPrefix("api-ms-") && !$0.hasPrefix("ext-ms-") && !builtinDLLs.contains($0) && !local.contains($0) && !sys.contains($0) }
+        var parts: [String] = [], drivers: [String]? = nil
+        // Era: 9x-era PE (subsystem 4), Win16 and DirectDraw titles get a per-program virtual desktop with Retina off; DOS goes to DOSBox.
+        let era = exeEra(exe)
+        var desktop = false
+        var winver = ""   // Windows version reported to this exe when the picker is on "auto"
+        switch era.kind {
+        case "dos": parts.append(FileManager.default.fileExists(atPath: "/opt/homebrew/bin/dosbox") ? "DOS program — runs in DOSBox" : "DOS program — brew install dosbox-staging first")
+        case "win16": desktop = true; winver = "win98"; parts.append("16-bit Windows program — 1024x768 virtual desktop, Retina off")
+        default:
+            let msvc = era.linker != 2   // GNU ld stamps subsystem 4/5 on new programs; only trust the number from Microsoft/Borland linkers
+            if (era.subsystem > 0 && era.subsystem <= 4 && msvc) || imps.contains("ddraw.dll") { desktop = true; winver = "win98"; parts.append("Windows 9x-era program — 1280x960 virtual desktop, Retina off") }
+            else if era.subsystem == 5 && (6...9).contains(era.linker) { winver = "winxp"; parts.append("XP-era program") }   // VC6–VC2008 builds
+        }
+        if template == "auto", !winver.isEmpty { parts.append("reports Windows as \(winver)") }
+        if let gfx = [("d3d12.dll", "Direct3D 12"), ("d3d11.dll", "Direct3D 11"), ("d3d10.dll", "Direct3D 10"), ("d3d9.dll", "Direct3D 9"), ("d3d8.dll", "Direct3D 8"), ("ddraw.dll", "DirectDraw"), ("vulkan-1.dll", "Vulkan"), ("opengl32.dll", "OpenGL")].first(where: { imps.contains($0.0) }) { parts.append(gfx.1) }   // newest API first
+        if imps.contains("d3d12.dll") {
+            let cur = driverList(launchEnvRaw(), bottle: selected)
+            if !d3dmetalInstalled() { parts.append("needs D3DMetal (not installed — Drivers › D3DMetal…)") }
+            else if !d3dmetalOK { parts.append("needs D3DMetal — accept Apple's license first (Drivers › D3DMetal…)") }
+            else if !cur.contains("d3dmetal") { drivers = cur.filter { !["dxmt", "dxvk", "dxvk3"].contains($0) } + ["d3dmetal"]; parts.append("switching to d3dmetal for this launch") }
+        }
+        var verbs = Array(Set(missing.compactMap { depVerbs[$0] })).sorted()
+        // mscoree.dll is a Wine builtin stub; a .NET app only runs if Wine Mono (engine or bottle) or a real .NET Framework is installed.
+        if imps.contains("mscoree.dll") {
+            let engine = ((wineBin as NSString).deletingLastPathComponent as NSString).deletingLastPathComponent
+            let win = "\(bottlesDir)/\(selected)/drive_c/windows"
+            let hasNet = [engine + "/share/wine/mono", win + "/mono", win + "/Microsoft.NET/Framework64/v4.0.30319/clr.dll", win + "/Microsoft.NET/Framework/v4.0.30319/clr.dll"].contains { fm.fileExists(atPath: $0) }
+            if hasNet { parts.append(".NET app (Wine Mono present)") } else { verbs.append("dotnet48"); parts.append(".NET app") }
+        }
+        // Steam game: what Linux players needed (umu-protonfixes) is what we need too, minus Proton-only knobs.
+        var n = Needs(drivers: drivers, verbs: [], note: "", desktop: desktop, winver: template == "auto" ? winver : "", dx12: imps.contains("d3d12.dll"))
+        // Anti-cheat: local signatures first (works for any program), then the community map for Steam games. Never bypassed — only reported honestly.
+        // Scan the game's own root: for a Steam game that is steamapps/common/<Game> (never the whole library), otherwise the exe's folder.
+        let gameRoot: String = { if let r = exe.range(of: "/steamapps/common/") { let rest = exe[r.upperBound...]; if let s = rest.firstIndex(of: "/") { return String(exe[..<s]) } }; return dir }()
+        var acNames = antiCheatSignatures(in: gameRoot)
+        if let g = steamGames[exe] {
+            let c = communityFixes(g.id)
+            if !c.tier.isEmpty { parts.append("ProtonDB \(c.tier)") }
+            acNames += c.anticheat.filter { !acNames.contains($0) }
+            // Highball (CC0) curated backend per title wins over import-based guessing, when that driver is installed and allowed.
+            let map = ["d3dmetal": autoDriverSetDX12, "dxmt": autoDriverSet, "dxvk": ["dxvk", "cnc_ddraw"], "dxvk-moltenvk": ["dxvk", "cnc_ddraw"], "wined3d": ["cnc_ddraw"]]
+            if let set = map[c.renderer], set.allSatisfy({ fm.fileExists(atPath: "\(driversDir)/\($0)/wine") }), !(c.renderer == "d3dmetal" && !d3dmetalOK) {
+                parts.append("Highball \(c.hbStatus): \(c.renderer)")
+                // Only switch when the current set cannot serve the recommendation: d3dmetal already covers a "dxmt" (D3D11) title, so no
+                // restart ping-pong between a DX12 game and a DX11 game in the same bottle.
+                let cur = Set(driverList(launchEnvRaw(), bottle: selected))
+                let served = cur.isSuperset(of: set) || (c.renderer == "dxmt" && cur.contains("d3dmetal"))
+                if !served { drivers = set; n.drivers = set }
+            } else if !c.renderer.isEmpty { parts.append("Highball \(c.hbStatus): \(c.renderer)" + (c.renderer == "d3dmetal" && !d3dmetalOK ? " (license not accepted)" : "")) }
+            verbs += c.verbs.filter { !verbs.contains($0) }; n.overrides = c.overrides; n.env = c.env; n.args = c.args
+            if !(c.verbs.isEmpty && c.overrides.isEmpty && c.env.isEmpty && c.args.isEmpty) { parts.append("applying community fixes" + (c.overrides.isEmpty ? "" : " (overrides: " + c.overrides.map { "\($0.0)=\($0.1)" }.joined(separator: ", ") + ")") + (c.args.isEmpty ? "" : " args " + c.args.joined(separator: " "))) }
+            if !c.launchArgs.isEmpty { n.args += c.launchArgs.split(separator: " ").map(String.init) }
+        }
+        if let v = antiCheatVerdict(acNames) { n.anticheat = v; parts.append(v.1) }
+        // §8.2 Untrusted executable: not installed by a store client. Warn, never block.
+        if steamGames[exe] == nil, !exe.hasSuffix("/Steam/steam.exe"), !exe.contains("/drive_c/windows/"), !exe.contains("/Program Files/Windows NT/") {
+            parts.append("not installed through a store — run only if you trust where it came from")
+        }
+        // AVX (§7.2/§4.3): known from the cached disassembly count; Rosetta advertises AVX only to programs that have AVX code.
+        if let c = avxCount(exe), c > 500 { n.env["ROSETTA_ADVERTISE_AVX"] = "1"; parts.append("uses AVX (Rosetta AVX on)") }
+        else if avxCount(exe) == nil, era.kind == "pe" { parts.append("AVX scan pending") }
+        // Per-program options (right-click → Options…): ARGS, DRIVERS, any other KEY=VALUE becomes environment. They win over detection.
+        let o = options(exe)
+        if let a = o["ARGS"], !a.isEmpty { n.args += a.split(separator: " ").map(String.init) }
+        if let d = o["DRIVERS"], !d.isEmpty { drivers = d.split(separator: ",").map(String.init); n.drivers = drivers }
+        for (k, v) in o where !["ARGS", "DRIVERS", "FOCUS_SHORTCUT", "PAUSE_IN_BACKGROUND", "MOUSE_CAPTURE"].contains(k) { n.env[k] = v }
+        // §7.10 Locale: LANG=ja_JP.UTF-8 (etc.) reaches Wine as-is; CJK locales also get the matching fonts so old games don't show boxes.
+        if let l = o["LANG"], ["ja", "zh", "ko"].contains(where: { l.hasPrefix($0) }), !verbs.contains("cjkfonts") { verbs.append("cjkfonts"); parts.append("locale \(l) + CJK fonts") }
+        if !o.isEmpty { parts.append("custom options: " + o.keys.sorted().joined(separator: " ")) }
+        let unknown = missing.filter { depVerbs[$0] == nil }
+        if !verbs.isEmpty { parts.append(winetricks == nil ? "needs \(verbs.joined(separator: " ")) — brew install winetricks to fetch automatically" : "fetching \(verbs.joined(separator: " ")) via winetricks") }
+        if !unknown.isEmpty { parts.append("missing DLLs: " + unknown.joined(separator: ", ")) }
+        n.note = imps.isEmpty && parts.isEmpty ? "" : "Launch check \(name): " + (imps.isEmpty ? "" : "\(imps.count) DLLs") + (parts.isEmpty ? ", all available" : (imps.isEmpty ? "" : " — ") + parts.joined(separator: "; ")) + "\n"
+        n.verbs = winetricks == nil ? [] : verbs
+        // Tile light: red = will not start as is, yellow = starts after automatic work or with a caveat, green = ready.
+        let red = !unknown.isEmpty || (!verbs.isEmpty && winetricks == nil) || n.anticheat?.0 == .red || parts.contains { $0.contains("not installed") || $0.contains("brew install") || $0.contains("accept Apple's license") }
+        let yellow = !verbs.isEmpty || drivers != nil || desktop || n.anticheat != nil || parts.contains { $0.contains("ProtonDB silver") || $0.contains("ProtonDB bronze") || $0.contains("ProtonDB borked") || $0.contains("ProtonDB pending") }
+        n.status = red ? .red : yellow ? .yellow : .green
+        return n
+    }
+
+    // Pre-verification: run the launch check for every tile after a scan, so problems show before anyone clicks Play.
+    func verifyAll() {
+        let bottle = selected
+        guard FileManager.default.fileExists(atPath: "\(bottlesDir)/\(bottle)/drive_c") else { return }
+        Task { @MainActor in
+            for p in programs where bottle == selected {
+                noteExeChange(p); readiness[p] = launchNeeds(p); await Task.yield()
+            }
+            scanAVX(programs)   // background disassembly for exes not scanned yet; tiles update as results arrive
+            // Bottle-wide DirectX 12 need: flip the marker, re-check the tiles against the new set, and restart Steam so games started from inside it match.
+            let needs12 = programs.contains { readiness[$0]?.dx12 == true }, marker = dx12Marker(selected)
+            if needs12 != FileManager.default.fileExists(atPath: marker), bottle == selected {
+                if needs12 { FileManager.default.createFile(atPath: marker, contents: nil) } else { try? FileManager.default.removeItem(atPath: marker) }
+                log += needs12 ? "A Direct3D 12 game is installed: this bottle now runs d3dmetal for Direct3D 10/11/12.\n" : "No Direct3D 12 game left: back to dxmt for Direct3D 10/11.\n"
+                loadSettings(); for p in programs { readiness[p] = launchNeeds(p) }
+                if let s = programs.first(where: { $0.hasSuffix("/Steam/steam.exe") }), steamRunning() {
+                    log += "Restarting Steam with the new driver set…\n"
+                    await stopSteam(); launch(s)
+                }
+            }
+            // A missing driver folder we can fetch ourselves (dxmt/dxvk): fetch it instead of leaving a red light.
+            if driverStatus.1.hasPrefix("missing:"), Model.driverSources.contains(where: { driverStatus.1.contains($0.0) }), !busy { updateDrivers() }
+        }
+    }
+
+    // Per-program options live in <bottle>/options/<exe>.env as KEY=VALUE lines; the raw text is what the Options… sheet edits.
+}

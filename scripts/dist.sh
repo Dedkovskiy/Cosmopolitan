@@ -1,7 +1,7 @@
 #!/bin/sh
 # Packs Cosmopolitan for another Mac: the app + engine + drivers + codecs (no bottles). Output: dist/Cosmopolitan-<date>.tgz
 # On the other Mac: untar, run ./install.sh, then right-click Cosmopolitan.app → Open once (ad-hoc signature, no notarization).
-set -e; cd "$(dirname "$0")"; ./build.sh
+set -e; cd "$(dirname "$0")/.."; scripts/build.sh
 S="$HOME/Library/Application Support/Cosmopolitan"; D="dist/stage"; rm -rf dist; mkdir -p "$D/support/engines"
 cp -cR Cosmopolitan.app "$D/"
 cp -cR "$S/engines/WS12WineSikarugir10.0_8" "$S/engines/renderer" "$S/engines/gstreamer" "$D/support/engines/"

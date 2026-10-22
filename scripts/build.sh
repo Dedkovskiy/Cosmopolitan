@@ -1,10 +1,13 @@
 #!/bin/sh
 # Builds Cosmopolitan.app next to this script.
-set -e; cd "$(dirname "$0")"
+set -e; cd "$(dirname "$0")/.."   # repo root (scripts/ lives one level down)
 rm -rf Cosmopolitan.app; mkdir -p Cosmopolitan.app/Contents/MacOS Cosmopolitan.app/Contents/Resources Cosmopolitan.app/Contents/Frameworks
 # Sparkle (MIT) for auto-updates: framework embedded, EdDSA public key in Info.plist, feed URL set in release.sh's appcast.
 cp -R Sparkle/Sparkle.framework Cosmopolitan.app/Contents/Frameworks/
-swiftc -parse-as-library -O -F Sparkle -framework Sparkle -Xlinker -rpath -Xlinker @executable_path/../Frameworks -o Cosmopolitan.app/Contents/MacOS/Cosmopolitan main.swift
+# -g keeps debug info; dsymutil moves it into a separate Cosmopolitan.app.dSYM (shipped next to releases, never inside the app).
+swiftc -parse-as-library -O -g -F Sparkle -framework Sparkle -Xlinker -rpath -Xlinker @executable_path/../Frameworks -o Cosmopolitan.app/Contents/MacOS/Cosmopolitan $(find Sources -name '*.swift' | sort)
+dsymutil Cosmopolitan.app/Contents/MacOS/Cosmopolitan -o Cosmopolitan.app.dSYM 2>/dev/null
+strip -S Cosmopolitan.app/Contents/MacOS/Cosmopolitan 2>/dev/null   # app stays small; symbols live in the dSYM
 PUBKEY=$(cat Sparkle/public-key.txt 2>/dev/null); FEED=${COSMO_FEED_URL:-https://cyber-prinzesse.github.io/Cosmopolitan/appcast.xml}
 cp AppIcon.icns Cosmopolitan.app/Contents/Resources/  # built once from icon.png: sips -z … + iconutil -c icns
 cp TERMS.txt THIRD_PARTY_NOTICES.md README.md Cosmopolitan.app/Contents/Resources/   # shown on first run / referenced from the UI

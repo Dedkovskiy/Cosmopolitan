@@ -1,6 +1,8 @@
 # Build output
 Cosmopolitan.app/
+Cosmopolitan.app.dSYM/
 dist/
+dsyms/
 
 # Apple D3DMetal (Game Porting Toolkit) — proprietary, must never be committed
 D3DMetal.framework/
