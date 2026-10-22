@@ -17,7 +17,12 @@ extension Model {
             snapshot("before installing \(need.verbs.joined(separator: " "))")
             // Runtime missing: let winetricks fetch it into this bottle first (output streams to the log), then start the program.
             var env = launchEnv(selected); env["WINE"] = wineBin; env["PATH"] = "/opt/homebrew/bin:/usr/local/bin:" + (ProcessInfo.processInfo.environment["PATH"] ?? "/usr/bin:/bin")
-            exec(winetricks!, ["-q"] + need.verbs, env: env) { go() }
+            // winetricks ends many verbs with `wineserver -w`, which waits for EVERY Wine process in the bottle: with Steam running it
+            // waits forever. So Steam is stopped first and brought back once the verbs are in (the program starts in between).
+            let steamWasUp = steamRunning()
+            let run = { self.exec(winetricks!, ["-q"] + need.verbs, env: env) { go(); if steamWasUp { self.autostart() } } }
+            if steamWasUp { log += "Stopping Steam while winetricks installs \(need.verbs.joined(separator: " ")) (it waits for all Wine processes); Steam comes back afterwards.\n"; Task { @MainActor in await self.stopSteam(); run() } }
+            else { run() }
         }
     }
 
