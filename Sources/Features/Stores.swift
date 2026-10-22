@@ -11,17 +11,19 @@ var epicOwned: [(id: String, name: String)] = []                 // signed-in Ep
 var gogOwned: [(id: String, name: String)] = []                  // signed-in GOG library: gamename slug / title
 
 enum Store: String, CaseIterable, Identifiable {
-    case battlenet = "Battle.net", epic = "Epic Games Launcher"
+    case steam = "Steam", battlenet = "Battle.net", epic = "Epic Games Launcher"
     var id: String { rawValue }
     var url: String {
         switch self {
+        case .steam: return "https://cdn.cloudflare.steamstatic.com/client/installer/SteamSetup.exe"
         case .battlenet: return "https://downloader.battle.net/download/getInstaller?os=win&installer=Battle.net-Setup.exe"
         case .epic: return "https://launcher-public-service-prod06.ol.epicgames.com/launcher/api/installer/download/EpicGamesLauncherInstaller.msi"
         }
     }
-    var file: String { self == .battlenet ? "Battle.net-Setup.exe" : "EpicGamesLauncherInstaller.msi" }
+    var file: String { self == .steam ? "SteamSetup.exe" : self == .battlenet ? "Battle.net-Setup.exe" : "EpicGamesLauncherInstaller.msi" }
     var exes: [String] {
         switch self {
+        case .steam: return ["Program Files (x86)/Steam/steam.exe"]
         case .battlenet: return ["Program Files (x86)/Battle.net/Battle.net Launcher.exe", "Program Files (x86)/Battle.net/Battle.net.exe"]
         case .epic: return ["Program Files/Epic Games/Launcher/Portal/Binaries/Win64/EpicGamesLauncher.exe", "Program Files (x86)/Epic Games/Launcher/Portal/Binaries/Win64/EpicGamesLauncher.exe"]
         }
@@ -86,6 +88,7 @@ extension Model {
                 self.busy = false
                 guard r.contains("__ok") else { self.log += "Download failed: \(r)\n"; return }
                 if s == .battlenet { self.battlenetConfig() }
+                if s == .steam { self.steamBottleTweaks() }
                 if dst.hasSuffix(".msi") {   // Epic: silent MSI install, nothing to click; the client appears in the grid when msiexec is done
                     self.log += "\(s.rawValue): installing…\n"
                     self.wine(self.selected, ["msiexec", "/i", "Z:" + dst.replacingOccurrences(of: "/", with: "\\"), "/qn"]) { self.scan() }
@@ -99,6 +102,16 @@ extension Model {
         }
     }
 
+    // Steam under Wine: its web helper must stay on Wine's own Direct3D (DXMT's dxgi crashes it), Steam Input must not grab the pad
+    // (its XInput hooks don't work under Wine, so XInput is disabled for steam.exe only), and 96 DPI keeps its window a normal size.
+    func steamBottleTweaks() {
+        let env = launchEnv(selected).map { "\($0.key)='\($0.value)'" }.joined(separator: " ")
+        func reg(_ k: String, _ n: String, _ t: String, _ v: String) { _ = sh("env \(env) '\(wineBin)' reg add '\(k)' /v '\(n)' /t \(t) /d '\(v)' /f >/dev/null 2>&1") }
+        for d in ["d3d11", "dxgi", "d3d10core"] { reg("HKCU\\Software\\Wine\\AppDefaults\\steamwebhelper.exe\\DllOverrides", d, "REG_SZ", "builtin") }
+        for d in ["xinput1_1", "xinput1_2", "xinput1_3", "xinput1_4", "xinput9_1_0", "xinputuap", "dinput", "dinput8"] { reg("HKCU\\Software\\Wine\\AppDefaults\\steam.exe\\DllOverrides", d, "REG_SZ", "") }
+        reg("HKCU\\Control Panel\\Desktop", "LogPixels", "REG_DWORD", "96")
+        log += "Steam: bottle prepared (web helper on Wine's Direct3D, Steam Input kept off the controller, 96 DPI).\n"
+    }
     // Battle.net.config: hardware acceleration and streaming off (CEF under Wine renders black otherwise). Merged, never clobbered.
     func battlenetConfig() {
         let p = "\(bottlesDir)/\(selected)/drive_c/users/\(NSUserName())/AppData/Roaming/Battle.net/Battle.net.config"
