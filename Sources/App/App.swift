@@ -8,7 +8,7 @@ let updater = SPUStandardUpdaterController(startingUpdater: !isTestBuild, update
     init() {
         enterTestModeIfNeeded()   // first, before any path is computed
         let a = CommandLine.arguments
-        let modes = ["--settings", "--setup", "--session-end", "--troubleshoot", "--repair", "--input", "--find", "--status", "--check", "--update", "--launch", "--tune", "--tunesteam", "--newbottle", "--accept-d3dmetal", "--snapshot", "--rollback", "--importables", "--import", "--willitrun", "--bugreport", "--hints", "--offline", "--compress", "--shaders", "--volumes", "--offlineexe", "--uslayout", "--hudocr", "--saves", "--mods", "--addmod", "--mod", "--rumble", "--padmode", "--procs", "--clean-driver-copies", "--sweep-registry", "--tree-hash"]   // --launch <bottle> <exe> [seconds]   // --check <bottle> <exe>: dry-run of the launch check
+        let modes = ["--settings", "--setup", "--session-end", "--troubleshoot", "--repair", "--input", "--find", "--status", "--check", "--update", "--launch", "--tune", "--tunesteam", "--newbottle", "--accept-d3dmetal", "--snapshot", "--rollback", "--importables", "--import", "--willitrun", "--bugreport", "--hints", "--offline", "--compress", "--shaders", "--volumes", "--offlineexe", "--uslayout", "--hudocr", "--saves", "--mods", "--addmod", "--mod", "--rumble", "--padmode", "--procs", "--clean-driver-copies", "--sweep-registry", "--tree-hash", "--install-d3dmetal"]   // --launch <bottle> <exe> [seconds]   // --check <bottle> <exe>: dry-run of the launch check
         guard let i = a.firstIndex(where: { modes.contains($0) }) else { return }
         cliMode = true
         let m = Model()
@@ -37,6 +37,7 @@ let updater = SPUStandardUpdaterController(startingUpdater: !isTestBuild, update
         case "--clean-driver-copies": let r = Model.cleanDriverCopies(m.selected); m.log += r.isEmpty ? "\(m.selected): no driver copies in system32/syswow64.\n" : "\(m.selected): moved \(r.count) driver copies:\n" + r.map { "  " + $0 }.joined(separator: "\n") + "\n"
         case "--sweep-registry": let r = m.sweepRegistry(m.selected); m.log += r.isEmpty ? "\(m.selected): no registry settings to remove.\n" : "\(m.selected): removed \(r.count) registry settings:\n" + r.map { "  " + $0 }.joined(separator: "\n") + "\n"
         case "--tree-hash": for p in a.dropFirst(i + 1) { m.log += "\(treeHash(p) ?? "unreadable")  \(p)\n" }
+        case "--install-d3dmetal": if i + 1 < a.count { m.installD3DMetal(from: a[i + 1], confirmed: a.contains("--yes")) }
         case "--setup": let ok = Model.performSetup(engine: engineName) { s, p in print(String(format: "[%3.0f%%] ", p * 100) + s) }; print(ok ? "setup ok" : "setup failed"); if !ok { exit(1) }
         case "--session-end": if i + 2 < a.count {   // test the report offer: --session-end <exe> <seconds> [on|off]; prints, never opens anything
             if i + 3 < a.count { UserDefaults.standard.set(a[i + 3] == "on", forKey: "compatReports") }
@@ -57,7 +58,7 @@ let updater = SPUStandardUpdaterController(startingUpdater: !isTestBuild, update
         case "--tune": if i + 2 < a.count { m.log += m.tuneUnreal(a[i + 2]) ?? "nothing to tune (no settings file yet, or already tuned)\n" }
         case "--launch": if i + 2 < a.count { m.launch(a[i + 2]); RunLoop.main.run(until: Date().addingTimeInterval(Double(a.count > i + 3 ? a[i + 3] : "30") ?? 30)) }
         case "--check": if i + 2 < a.count { let n = m.launchNeeds(a[i + 2]); m.log += n.note + "drivers override: \(n.drivers ?? ["(bottle setting)"]) verbs: \(n.verbs) overrides: \(n.overrides) env: \(n.env) args: \(n.args) desktop: \(n.desktop) light: \(n.status == .green ? "green" : n.status == .yellow ? "yellow" : "red")\n" }
-        case "--status": m.log += "drivers: \(m.driverStatus.0 == .green ? "green" : m.driverStatus.0 == .yellow ? "yellow" : "red") (\(m.driverStatus.1))\ncontroller: \(m.padStatus.0 == .green ? "green" : m.padStatus.0 == .yellow ? "yellow" : "red") (\(m.padStatus.1))\n"
+        case "--status": m.log += "d3dmetal: " + (m.d3dmetalNow.map { "\($0.pretty) from \($0.source); features: " + $0.features.sorted().joined(separator: " ") + (d3dmetalOK ? "; license accepted" : "; license not accepted") } ?? "not installed") + "\n"; m.log += "drivers: \(m.driverStatus.0 == .green ? "green" : m.driverStatus.0 == .yellow ? "yellow" : "red") (\(m.driverStatus.1))\ncontroller: \(m.padStatus.0 == .green ? "green" : m.padStatus.0 == .yellow ? "yellow" : "red") (\(m.padStatus.1))\n"
         default: m.troubleshoot() }
         print(m.log); exit(0)
     }

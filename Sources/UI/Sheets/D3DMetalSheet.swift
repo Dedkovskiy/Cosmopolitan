@@ -3,11 +3,15 @@ import UniformTypeIdentifiers
 
 extension ContentView {
     @ViewBuilder var d3dmetalSheet: some View {
-            let installed = d3dmetalInstalled(), lic = d3dmetalLicenseFile()
+            let installed = d3dmetalInstalled(), lic = d3dmetalLicenseFile(), info = m.d3dmetalNow
             VStack(alignment: .leading, spacing: 10) {
                 Text("D3DMetal — Apple Game Porting Toolkit").font(.headline)
-                Text("D3DMetal translates Direct3D 12 (and 11) to Metal. It is Apple's proprietary software under Apple's own license: not part of Cosmopolitan, obtained by you from Apple, copied unmodified into Application Support, never sold. Status: " + (!installed ? "not installed" : d3dmetalOK ? "installed, license accepted" : "installed, license NOT accepted — Direct3D 12 games will not use it until you accept"))
+                Text("D3DMetal translates Direct3D 12 (and 11) to Metal. It is Apple's proprietary software under Apple's own license: not part of Cosmopolitan, obtained by you from Apple, copied unmodified into Application Support, never sold. Status: " + (!installed ? "not installed" : "D3DMetal \(info?.pretty ?? "?") from \(info?.source ?? "your download"), " + (d3dmetalOK ? "license accepted" : "license NOT accepted — Direct3D 12 games will not use it until you accept")))
                     .font(.callout).fixedSize(horizontal: false, vertical: true)
+                if installed, (info?.major ?? 0) < 4 {
+                    Text("Game Porting Toolkit 4 is Apple's current download; its D3DMetal adds the Metal 4 backend and a frame cap (used for the battery cap). If you want it, download it from Apple yourself and choose its disk image with Install from Apple's download…. The current version is kept as a backup.")
+                        .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
                 HStack {
                     Button("Apple's download page") { NSWorkspace.shared.open(URL(string: "https://developer.apple.com/games/game-porting-toolkit/")!) }
                     Button("Install from Apple's download…") {

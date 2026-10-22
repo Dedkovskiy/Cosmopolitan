@@ -18,6 +18,7 @@ func installedDrivers() -> [String] {
     ((try? FileManager.default.contentsOfDirectory(atPath: driversDir)) ?? []).filter { driverSlot[$0] != nil }.sorted()
 }
 func driverLabel(_ d: String) -> String {
+    if d == "d3dmetal", let i = Model.d3dmetalInfo(driversDir + "/d3dmetal") { return "d3dmetal  (\(i.pretty), from \(i.source))" }
     let v = (try? String(contentsOfFile: "\(driversDir)/\(d)/version", encoding: .utf8))?.components(separatedBy: "\n").first ?? ""
     return (v.isEmpty ? d : "\(d)  (\(v))") + (driverUsable(d) ? "" : " — not used: can't run on Metal's Vulkan")
 }
