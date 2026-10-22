@@ -17,7 +17,12 @@ hdiutil create -quiet -volname "Cosmopolitan $COSMO_VERSION" -srcfolder dist/dmg
 # Appcast: generate_appcast signs the app zip with the EdDSA key and writes the feed; the enclosure URL points at this version's GitHub release,
 # and the feed itself is served from the *latest* release (SUFeedURL in build.sh), so publishing a release is publishing the update.
 REPO=${COSMO_REPO:-cyber-prinzesse/Cosmopolitan}
-mkdir -p dist/appcast && cp "dist/Cosmopolitan-$COSMO_VERSION.zip" dist/appcast/ && ./Sparkle/bin/generate_appcast --download-url-prefix "https://github.com/$REPO/releases/download/v$COSMO_VERSION/" dist/appcast/ && mv dist/appcast/appcast.xml dist/appcast.xml && rm -rf dist/appcast
+# The Keychain lets generate_keys (which created the key) read it but prompts for generate_appcast, which fails when no one can click;
+# so the key is exported to a private temp file for the few seconds of signing and shredded again.
+KEYFILE=$(mktemp) && ./Sparkle/bin/generate_keys -x "$KEYFILE" >/dev/null
+rm -rf dist/appcast; mkdir -p dist/appcast && cp "dist/Cosmopolitan-$COSMO_VERSION.zip" dist/appcast/ && ./Sparkle/bin/generate_appcast --ed-key-file "$KEYFILE" --download-url-prefix "https://github.com/$REPO/releases/download/v$COSMO_VERSION/" dist/appcast/ && mv dist/appcast/appcast.xml dist/appcast.xml && rm -rf dist/appcast
+rm -P -f "$KEYFILE"
+grep -q "sparkle:edSignature" dist/appcast.xml || { echo "appcast is not signed, aborting"; exit 1; }
 echo "Release $COSMO_VERSION ($COSMO_BUILD):"
 echo "  dist/Cosmopolitan-$COSMO_VERSION.zip        the app (Sparkle update item)"
 echo "  dist/Cosmopolitan-$COSMO_VERSION.dSYM.zip   debug symbols (attach to the GitHub release; never inside the app)"
