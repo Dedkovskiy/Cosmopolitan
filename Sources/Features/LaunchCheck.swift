@@ -42,18 +42,15 @@ extension Model {
             else if era.subsystem == 5 && (6...9).contains(era.linker) { winver = "winxp"; parts.append("XP-era program") }   // VC6–VC2008 builds
         }
         if template == "auto", !winver.isEmpty { parts.append("reports Windows as \(winver)") }
-        if let gfx = [("d3d12.dll", "Direct3D 12"), ("d3d11.dll", "Direct3D 11"), ("d3d10.dll", "Direct3D 10"), ("d3d9.dll", "Direct3D 9"), ("d3d8.dll", "Direct3D 8"), ("ddraw.dll", "DirectDraw"), ("vulkan-1.dll", "Vulkan"), ("opengl32.dll", "OpenGL")].first(where: { imps.contains($0.0) }) { parts.append(gfx.1) }   // newest API first
-        if imps.contains("d3d12.dll") {
-            let cur = driverList(launchEnvRaw(), bottle: selected)
-            if !d3dmetalInstalled() { parts.append("needs D3DMetal (not installed — Drivers › D3DMetal…)") }
-            else if !d3dmetalOK { parts.append("needs D3DMetal — accept Apple's license first (Drivers › D3DMetal…)") }
-            else if !cur.contains("d3dmetal") { drivers = cur.filter { !["dxmt", "dxvk", "dxvk3"].contains($0) } + ["d3dmetal"]; parts.append("switching to d3dmetal for this launch") }
-        }
-        // D3DMetal has no 32-bit Direct3D 10/11: a 32-bit game on the D3DMetal set falls back to Wine's OpenGL path and fails its
-        // feature-level check ("requires DX10_0"). DXMT ships 32-bit d3d10/11, so such games get the DXMT set for their launch.
-        if peRead(exe).info.machine == 0x14c, imps.contains(where: { ["d3d11.dll", "d3d10.dll", "d3d10_1.dll", "dxgi.dll", "d3d10core.dll"].contains($0) }),
-           driverList(launchEnvRaw(), bottle: selected).contains("d3dmetal") {
-            drivers = autoDriverSet; parts.append("32-bit Direct3D 10/11: DXMT for this launch (D3DMetal is 64-bit only)")
+        // Driver plan from facts: APIs the game uses (imports + runtime loads), its 32/64-bit build, and what each installed driver ships.
+        let highball = steamGames[exe].map { communityFixes($0.id).renderer }.flatMap { ["d3dmetal": "d3dmetal", "dxmt": "dxmt", "dxvk": "dxvk", "dxvk-moltenvk": "dxvk"][$0] }
+        let plan = driverPlan(exe, imports: imps, prefer: highball)
+        if !plan.apis.isEmpty { parts.append((plan.is32 ? "32-bit " : "64-bit ") + plan.why.joined(separator: ", ")) }
+        else if let gfx = [("vulkan-1.dll", "Vulkan"), ("opengl32.dll", "OpenGL")].first(where: { imps.contains($0.0) }) { parts.append(gfx.1) }
+        for api in plan.missing { parts.append("\(api) driver not installed for this build") }   // red light: it will not render
+        if let fixed = storeDrivers(exe) { drivers = fixed; parts.append("store client: \(fixed.joined(separator: "+"))") }   // its UI is tested on these
+        else if !plan.drivers.isEmpty, !serves(driverList(launchEnvRaw(), bottle: selected), plan) {
+            drivers = plan.drivers; parts.append("using \(plan.drivers.joined(separator: "+")) for this launch")
         }
         var verbs = Array(Set(missing.compactMap { depVerbs[$0] })).sorted()
         // mscoree.dll is a Wine builtin stub; a .NET app only runs if Wine Mono (engine or bottle) or a real .NET Framework is installed.
@@ -64,7 +61,7 @@ extension Model {
             if hasNet { parts.append(".NET app (Wine Mono present)") } else { verbs.append("dotnet48"); parts.append(".NET app") }
         }
         // Steam game: what Linux players needed (umu-protonfixes) is what we need too, minus Proton-only knobs.
-        var n = Needs(drivers: drivers, verbs: [], note: "", desktop: desktop, winver: template == "auto" ? winver : "", dx12: imps.contains("d3d12.dll"))
+        var n = Needs(drivers: drivers, verbs: [], note: "", desktop: desktop, winver: template == "auto" ? winver : "", dx12: plan.apis.contains("Direct3D 12") && !plan.is32)
         // Anti-cheat: local signatures first (works for any program), then the community map for Steam games. Never bypassed — only reported honestly.
         // Scan the game's own root: for a Steam game that is steamapps/common/<Game> (never the whole library), otherwise the exe's folder.
         let gameRoot: String = { if let r = exe.range(of: "/steamapps/common/") { let rest = exe[r.upperBound...]; if let s = rest.firstIndex(of: "/") { return String(exe[..<s]) } }; return dir }()
@@ -73,16 +70,8 @@ extension Model {
             let c = communityFixes(g.id)
             if !c.tier.isEmpty { parts.append("ProtonDB \(c.tier)") }
             acNames += c.anticheat.filter { !acNames.contains($0) }
-            // Highball (CC0) curated backend per title wins over import-based guessing, when that driver is installed and allowed.
-            let map = ["d3dmetal": autoDriverSetDX12, "dxmt": autoDriverSet, "dxvk": ["dxvk", "cnc_ddraw"], "dxvk-moltenvk": ["dxvk", "cnc_ddraw"], "wined3d": ["cnc_ddraw"]]
-            if let set = map[c.renderer], set.allSatisfy({ fm.fileExists(atPath: "\(driversDir)/\($0)/wine") }), !(c.renderer == "d3dmetal" && !d3dmetalOK) {
-                parts.append("Highball \(c.hbStatus): \(c.renderer)")
-                // Only switch when the current set cannot serve the recommendation: d3dmetal already covers a "dxmt" (D3D11) title, so no
-                // restart ping-pong between a DX12 game and a DX11 game in the same bottle.
-                let cur = Set(driverList(launchEnvRaw(), bottle: selected))
-                let served = cur.isSuperset(of: set) || (c.renderer == "dxmt" && cur.contains("d3dmetal"))
-                if !served { drivers = set; n.drivers = set }
-            } else if !c.renderer.isEmpty { parts.append("Highball \(c.hbStatus): \(c.renderer)" + (c.renderer == "d3dmetal" && !d3dmetalOK ? " (license not accepted)" : "")) }
+            // Highball's curated backend only orders the choice inside the driver plan above (it cannot pick a driver lacking the game's DLLs).
+            if !c.renderer.isEmpty { parts.append("Highball \(c.hbStatus): \(c.renderer)") }
             verbs += c.verbs.filter { !verbs.contains($0) }; n.overrides = c.overrides; n.env = c.env; n.args = c.args
             if !(c.verbs.isEmpty && c.overrides.isEmpty && c.env.isEmpty && c.args.isEmpty) { parts.append("applying community fixes" + (c.overrides.isEmpty ? "" : " (overrides: " + c.overrides.map { "\($0.0)=\($0.1)" }.joined(separator: ", ") + ")") + (c.args.isEmpty ? "" : " args " + c.args.joined(separator: " "))) }
             if !c.launchArgs.isEmpty { n.args += c.launchArgs.split(separator: " ").map(String.init) }
@@ -109,7 +98,7 @@ extension Model {
         n.note = imps.isEmpty && parts.isEmpty ? "" : "Launch check \(name): " + (imps.isEmpty ? "" : "\(imps.count) DLLs") + (parts.isEmpty ? ", all available" : (imps.isEmpty ? "" : " — ") + parts.joined(separator: "; ")) + "\n"
         n.verbs = winetricks == nil ? [] : verbs
         // Tile light: red = will not start as is, yellow = starts after automatic work or with a caveat, green = ready.
-        let red = !unknown.isEmpty || (!verbs.isEmpty && winetricks == nil) || n.anticheat?.0 == .red || parts.contains { $0.contains("not installed") || $0.contains("brew install") || $0.contains("accept Apple's license") }
+        let red = !unknown.isEmpty || (!verbs.isEmpty && winetricks == nil) || n.anticheat?.0 == .red || !plan.missing.isEmpty || parts.contains { $0.contains("not installed") || $0.contains("brew install") || $0.contains("accept Apple's license") }
         let yellow = !verbs.isEmpty || drivers != nil || desktop || n.anticheat != nil || parts.contains { $0.contains("ProtonDB silver") || $0.contains("ProtonDB bronze") || $0.contains("ProtonDB borked") || $0.contains("ProtonDB pending") }
         n.status = red ? .red : yellow ? .yellow : .green
         return n
