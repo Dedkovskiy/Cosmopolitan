@@ -97,8 +97,9 @@ extension Model {
         need.restartSteam = ensureControllerMode(for: exe)   // DualSense native ⇄ XInput: bus-wide, so Steam must restart when it changes
         log += need.note
         // Community DLL overrides go into the bottle registry (idempotent, same place protonfixes puts them).
-        let regEnv = launchEnv(selected).map { "\($0.key)='\($0.value)'" }.joined(separator: " ")
-        func reg(_ key: String, _ name: String, _ value: String) { _ = sh("env \(regEnv) '\(wineBin)' reg add '\(key)' /v '\(name)' /t REG_SZ /d '\(value)' /f >/dev/null 2>&1") }
+        // Every value goes through the registry ledger, so it can be removed again when the setting that wanted it is gone.
+        let e = (exe as NSString).lastPathComponent, b = selected
+        func reg(_ key: String, _ name: String, _ value: String, owner: String = "launch") { Model.regSet(b, key, name, value, exe: e, owner: owner) }
         if !need.overrides.isEmpty {
             let mark = "\(bottlesDir)/\(selected)/options/.overrides-\((exe as NSString).lastPathComponent)"
             if !FileManager.default.fileExists(atPath: mark) { snapshot("before community DLL overrides for \((exe as NSString).lastPathComponent)"); try? FileManager.default.createDirectory(atPath: (mark as NSString).deletingLastPathComponent, withIntermediateDirectories: true); FileManager.default.createFile(atPath: mark, contents: nil) }
@@ -106,17 +107,19 @@ extension Model {
         }
         // Old program: per-exe virtual desktop + Retina off (AppDefaults keys apply however the exe is started, also via Steam).
         // §9.1 Mouse capture for camera-heavy games: Options MOUSE_CAPTURE=1 → Wine keeps the cursor inside the game window.
-        if options(exe)["MOUSE_CAPTURE"] == "1" { reg("HKCU\\Software\\Wine\\AppDefaults\\\((exe as NSString).lastPathComponent)\\DirectInput", "MouseWarpOverride", "force") }
+        if options(exe)["MOUSE_CAPTURE"] == "1" { reg("HKCU\\Software\\Wine\\AppDefaults\\\(e)\\DirectInput", "MouseWarpOverride", "force") }
         if need.desktop {
             // §7.6 Notch-aware: the virtual desktop never exceeds the area below the notch (safe area), so nothing hides behind it.
             let scr = NSScreen.main, safeW = Int((scr?.frame.width ?? 1280) - (scr?.safeAreaInsets.left ?? 0) - (scr?.safeAreaInsets.right ?? 0)), safeH = Int((scr?.frame.height ?? 960) - (scr?.safeAreaInsets.top ?? 0) - (scr?.safeAreaInsets.bottom ?? 0))
             let want = exeEra(exe).kind == "win16" ? (1024, 768) : (1280, 960)
-            let e = (exe as NSString).lastPathComponent, size = "\(min(want.0, safeW))x\(min(want.1, safeH))"
-            reg("HKCU\\Software\\Wine\\Explorer\\Desktops", "Cosmopolitan", size)
+            let size = "\(min(want.0, safeW))x\(min(want.1, safeH))"
+            reg("HKCU\\Software\\Wine\\Explorer\\Desktops", "Cosmopolitan", size, owner: "bottle")
             reg("HKCU\\Software\\Wine\\AppDefaults\\\(e)\\Explorer", "Desktop", "Cosmopolitan")
             reg("HKCU\\Software\\Wine\\AppDefaults\\\(e)\\Mac Driver", "RetinaMode", "n")
         }
-        if !need.winver.isEmpty { reg("HKCU\\Software\\Wine\\AppDefaults\\\((exe as NSString).lastPathComponent)", "Version", need.winver) }
+        if !need.winver.isEmpty { reg("HKCU\\Software\\Wine\\AppDefaults\\\(e)", "Version", need.winver) }
+        let removed = Model.pruneRegistry(b, exe: e, wanted: wantedRegistry(exe, need))   // settings this program no longer needs
+        if !removed.isEmpty { log += "Removed registry settings \(e) no longer needs: " + removed.joined(separator: ", ") + "\n" }
         if let t = tuneUnreal(exe) { log += t }
         // Filesystem access: restricted bottles have no Z:. FULL_DISK=1 in cosmopolitan.env restores it (with a warning); removing the line takes it away again.
         let z = "\(bottlesDir)/\(selected)/dosdevices/z:", full = launchEnvRaw()["FULL_DISK"] == "1"

@@ -15,7 +15,7 @@ class Stress : Form {
     void Done() {
         var secs = (DateTime.Now - t0).TotalSeconds;
         File.AppendAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "results.txt"),
-            string.Format("{0,-10} {1,-4} {2} frames={3} fps={4:0} clr={5} linqsum={6}\r\n", "dotnet", Environment.Is64BitProcess ? "x64" : "x86", sum == 1999999000000L ? "OK  " : "FAIL", frames, frames / secs, Environment.Version, sum));
+            string.Format("{0,-10} {1,-4} {2} frames={3} fps={4:0} clr={5} linqsum={6} os={7} {8}\r\n", "dotnet", Environment.Is64BitProcess ? "x64" : "x86", sum == 1999999000000L ? "OK  " : "FAIL", frames, frames / secs, Environment.Version, sum, Environment.OSVersion.Platform, Environment.OSVersion.Version));
         Environment.Exit(0);
     }
     [STAThread] static void Main() { Application.Run(new Stress()); }

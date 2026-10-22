@@ -105,8 +105,10 @@ extension Model {
     // Steam under Wine: its web helper must stay on Wine's own Direct3D (DXMT's dxgi crashes it), Steam Input must not grab the pad
     // (its XInput hooks don't work under Wine, so XInput is disabled for steam.exe only), and 96 DPI keeps its window a normal size.
     func steamBottleTweaks() {
-        let env = launchEnv(selected).map { "\($0.key)='\($0.value)'" }.joined(separator: " ")
-        func reg(_ k: String, _ n: String, _ t: String, _ v: String) { _ = sh("env \(env) '\(wineBin)' reg add '\(k)' /v '\(n)' /t \(t) /d '\(v)' /f >/dev/null 2>&1") }
+        func reg(_ k: String, _ n: String, _ t: String, _ v: String) {   // recorded in the registry ledger as bottle settings (never pruned)
+            let exe = k.components(separatedBy: "AppDefaults\\").dropFirst().first?.components(separatedBy: "\\").first ?? ""
+            Model.regSet(selected, k, n, v, type: t, exe: exe, owner: "bottle")
+        }
         for d in ["d3d11", "dxgi", "d3d10core"] { reg("HKCU\\Software\\Wine\\AppDefaults\\steamwebhelper.exe\\DllOverrides", d, "REG_SZ", "builtin") }
         for d in ["xinput1_1", "xinput1_2", "xinput1_3", "xinput1_4", "xinput9_1_0", "xinputuap", "dinput", "dinput8"] { reg("HKCU\\Software\\Wine\\AppDefaults\\steam.exe\\DllOverrides", d, "REG_SZ", "") }
         reg("HKCU\\Control Panel\\Desktop", "LogPixels", "REG_DWORD", "96")

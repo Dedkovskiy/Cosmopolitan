@@ -121,6 +121,8 @@ extension Model {
             }
             scanAVX(programs)   // background disassembly for exes not scanned yet; tiles update as results arrive
             let pfx = "\(bottlesDir)/\(bottle)", fm = FileManager.default
+            // Registry values the launch checks no longer want (and pre-ledger ones of programs no longer here) are removed in the background.
+            if !cliMode { let wanted = registryWanted(bottle); Task.detached { let r = Model.applyRegistrySweep(bottle, wanted); if !r.isEmpty { await MainActor.run { self.log += "\(bottle): removed \(r.count) registry settings no longer needed:\n" + r.map { "  " + $0 }.joined(separator: "\n") + "\n" } } } }
             // Once per bottle: driver DLLs that older versions copied into system32/syswow64 are moved out (exact-hash copies only).
             if !cliMode, !fm.fileExists(atPath: pfx + "/.driver-copies-checked") {
                 fm.createFile(atPath: pfx + "/.driver-copies-checked", contents: nil)
