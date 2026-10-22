@@ -26,26 +26,30 @@ extension Model {
     nonisolated static func performSetup(engine: String, step: @escaping (String, Double) -> Void) -> Bool {
         let fm = FileManager.default
         let tplDir = NSHomeDirectory() + "/Library/Application Support/Sikarugir/Template"
-        // 1. Template
-        step("Finding the newest Sikarugir template…", 0.02)
-        var tpl = ((try? fm.contentsOfDirectory(atPath: tplDir)) ?? []).filter { $0.hasPrefix("Template-") && $0.hasSuffix(".app") }.sorted { $0.compare($1, options: .numeric) == .orderedDescending }.first
-        if tpl == nil {
-            let newest = shell("curl -s -m 15 https://sikarugir-app.github.io/Template/NewestVersion.txt").trimmingCharacters(in: .whitespacesAndNewlines)
-            guard newest.hasPrefix("Template-") else { step("✗ Could not reach sikarugir-app.github.io. Check the internet connection and try again.", 0); return false }
-            step("Downloading \(newest) (about 150 MB)…", 0.05)
-            let r = shell("mkdir -p '\(tplDir)' && cd '\(tplDir)' && curl -sfL -m 1200 -o t.tar.xz 'https://github.com/Sikarugir-App/Template/releases/download/v1.0/\(newest).tar.xz' && tar xf t.tar.xz && rm -f t.tar.xz && ls -d Template-*.app | tail -1")
-            guard r.hasSuffix(".app") else { step("✗ Template download failed. Try again.", 0); return false }
-            tpl = r.components(separatedBy: "\n").last
+        // 1. The pinned Sikarugir template. Its d3dmetal and apple_gptk folders (Apple's D3DMetal) are never extracted; the parts used are
+        //    checked against their pinned tree hashes before anything is copied.
+        step("Checking the Sikarugir template \(Pins.sikarugirTemplate)…", 0.02)
+        let app = "\(tplDir)/\(Pins.sikarugirTemplate).app"
+        if !fm.fileExists(atPath: app) {
+            step("Downloading \(Pins.sikarugirTemplate) (about 150 MB)…", 0.05)
+            _ = shell("mkdir -p '\(tplDir)' && cd '\(tplDir)' && curl -sfL -m 1200 -o t.tar.xz '\(Pins.sikarugirTemplateURL)' && tar xf t.tar.xz --exclude '*/renderer/d3dmetal*' --exclude '*/renderer/apple_gptk*'; rm -f t.tar.xz")
+            guard fm.fileExists(atPath: app) else { step("✗ Template download failed. Try again.", 0); return false }
         }
-        let app = "\(tplDir)/\(tpl!)"
+        if let bad = Pins.templateTrees.keys.sorted().first(where: { Pins.templateTree(app, $0) != Pins.templateTrees[$0] }) {
+            step("✗ The Sikarugir template doesn't match the pinned \(Pins.sikarugirTemplate) (\(bad)); nothing installed.", 0); return false
+        }
         // 2. Engine
         let engRoot = "\(support)/engines/\(engine)"
         if !fm.fileExists(atPath: engRoot + "/wswine.bundle/bin/wine") {
             step("Downloading the Wine engine \(engine) (about 160 MB)…", 0.35)
             let local = NSHomeDirectory() + "/Library/Application Support/Sikarugir/Engines/\(engine).tar.xz"
-            let get = fm.fileExists(atPath: local) ? "cp '\(local)' e.tar.xz" : "curl -sfL -m 1800 -o e.tar.xz 'https://github.com/Sikarugir-App/Engines/releases/download/v1.0/\(engine).tar.xz'"
+            guard engine == Pins.sikarugirEngine.version else { step("✗ Only the pinned engine \(Pins.sikarugirEngine.version) can be installed; choose it in Settings.", 0); return false }
+            // The local copy only if it has the pinned SHA-256; otherwise the pinned download (checked, cached).
+            guard let tarball = sha256File(local) == Pins.sikarugirEngine.sha256 ? local : fetchPinned(Pins.sikarugirEngine, log: { step($0.trimmingCharacters(in: .whitespacesAndNewlines), 0.45) }) else {
+                step("✗ The engine download failed or didn't match its pinned SHA-256; nothing installed.", 0); return false
+            }
             step("Unpacking the engine…", 0.6)
-            _ = shell("mkdir -p '\(engRoot)' && cd '\(engRoot)' && \(get) && tar xf e.tar.xz && rm -f e.tar.xz")
+            _ = shell("mkdir -p '\(engRoot)' && cd '\(engRoot)' && tar xf '\(tarball)'")
             guard fm.fileExists(atPath: engRoot + "/wswine.bundle/bin/wine") else { _ = shell("rm -rf '\(engRoot)'"); step("✗ Engine download failed. Try again.", 0); return false }
         }
         step("Preparing the engine (libraries, MoltenVK, GStreamer)…", 0.7)

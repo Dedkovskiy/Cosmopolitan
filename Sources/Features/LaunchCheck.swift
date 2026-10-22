@@ -147,8 +147,8 @@ extension Model {
                     await stopSteam(); launch(s)
                 }
             }
-            // A missing driver folder we can fetch ourselves (dxmt/dxvk): fetch it instead of leaving a red light.
-            if driverStatus.1.hasPrefix("missing:"), Model.driverSources.contains(where: { driverStatus.1.contains($0.0) }), !busy { updateDrivers() }
+            // A missing driver folder comes back from the pinned template instead of leaving a red light.
+            if driverStatus.1.hasPrefix("missing:"), !busy { restoreMissingDrivers() }
         }
     }
 

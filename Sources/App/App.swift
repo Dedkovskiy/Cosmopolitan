@@ -8,13 +8,13 @@ let updater = SPUStandardUpdaterController(startingUpdater: !isTestBuild, update
     init() {
         enterTestModeIfNeeded()   // first, before any path is computed
         let a = CommandLine.arguments
-        let modes = ["--settings", "--setup", "--session-end", "--troubleshoot", "--repair", "--input", "--find", "--status", "--check", "--update", "--launch", "--tune", "--tunesteam", "--newbottle", "--accept-d3dmetal", "--snapshot", "--rollback", "--importables", "--import", "--willitrun", "--bugreport", "--hints", "--offline", "--compress", "--shaders", "--volumes", "--offlineexe", "--uslayout", "--hudocr", "--saves", "--mods", "--addmod", "--mod", "--rumble", "--padmode", "--procs", "--clean-driver-copies", "--sweep-registry"]   // --launch <bottle> <exe> [seconds]   // --check <bottle> <exe>: dry-run of the launch check
+        let modes = ["--settings", "--setup", "--session-end", "--troubleshoot", "--repair", "--input", "--find", "--status", "--check", "--update", "--launch", "--tune", "--tunesteam", "--newbottle", "--accept-d3dmetal", "--snapshot", "--rollback", "--importables", "--import", "--willitrun", "--bugreport", "--hints", "--offline", "--compress", "--shaders", "--volumes", "--offlineexe", "--uslayout", "--hudocr", "--saves", "--mods", "--addmod", "--mod", "--rumble", "--padmode", "--procs", "--clean-driver-copies", "--sweep-registry", "--tree-hash"]   // --launch <bottle> <exe> [seconds]   // --check <bottle> <exe>: dry-run of the launch check
         guard let i = a.firstIndex(where: { modes.contains($0) }) else { return }
         cliMode = true
         let m = Model()
         if i + 1 < a.count, FileManager.default.fileExists(atPath: "\(bottlesDir)/\(a[i + 1])/drive_c") { m.selected = a[i + 1]; m.scan() }   // only real bottles: caches must never create one
         switch a[i] {
-        case "--repair": m.repair(); case "--input": m.inputCheck(); case "--find": m.findApps(); case "--update": m.log += Model.performUpdate()
+        case "--repair": m.repair(); case "--input": m.inputCheck(); case "--find": m.findApps(); case "--update": m.log += Model.performUpdate(install: a.contains("--install"))
         case "--tunesteam": m.tuneSteam()
         case "--newbottle": if i + 1 < a.count { m.createBottle(a[i + 1]); RunLoop.main.run(until: Date().addingTimeInterval(90)) }   // --newbottle <name>
         case "--accept-d3dmetal": m.acceptD3DMetal()   // same action as the "I accept" button; for the user's own scripting only
@@ -36,6 +36,7 @@ let updater = SPUStandardUpdaterController(startingUpdater: !isTestBuild, update
             print("compatReports       → long session offers a report: \(Model.shouldOfferReport(enabled: UserDefaults.standard.bool(forKey: "compatReports"), seconds: 600, alreadyOffered: false))")
         case "--clean-driver-copies": let r = Model.cleanDriverCopies(m.selected); m.log += r.isEmpty ? "\(m.selected): no driver copies in system32/syswow64.\n" : "\(m.selected): moved \(r.count) driver copies:\n" + r.map { "  " + $0 }.joined(separator: "\n") + "\n"
         case "--sweep-registry": let r = m.sweepRegistry(m.selected); m.log += r.isEmpty ? "\(m.selected): no registry settings to remove.\n" : "\(m.selected): removed \(r.count) registry settings:\n" + r.map { "  " + $0 }.joined(separator: "\n") + "\n"
+        case "--tree-hash": for p in a.dropFirst(i + 1) { m.log += "\(treeHash(p) ?? "unreadable")  \(p)\n" }
         case "--setup": let ok = Model.performSetup(engine: engineName) { s, p in print(String(format: "[%3.0f%%] ", p * 100) + s) }; print(ok ? "setup ok" : "setup failed"); if !ok { exit(1) }
         case "--session-end": if i + 2 < a.count {   // test the report offer: --session-end <exe> <seconds> [on|off]; prints, never opens anything
             if i + 3 < a.count { UserDefaults.standard.set(a[i + 3] == "on", forKey: "compatReports") }

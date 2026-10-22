@@ -9,9 +9,8 @@ extension Model {
     }
     // Sikarugir engines aren't self-contained: give a freshly unpacked one the same fix-ups the working 10.0_8 engine has.
     nonisolated static func prepareEngine(_ e: String) -> String {
-        let tpl = NSHomeDirectory() + "/Library/Application Support/Sikarugir/Template"
-        guard let t = ((try? FileManager.default.contentsOfDirectory(atPath: tpl)) ?? []).filter({ $0.hasPrefix("Template-") }).sorted(by: { $0.compare($1, options: .numeric) == .orderedDescending }).first else { return "✗ no Sikarugir template on disk; engine left unprepared\n" }
-        let fw = "\(tpl)/\(t)/Contents/Frameworks", unix = "\(e)/lib/wine/x86_64-unix"
+        guard let app = Pins.verifiedTemplate() else { return "✗ the pinned Sikarugir template \(Pins.sikarugirTemplate) is missing or doesn't match its pins; engine left as is\n" }
+        let fw = "\(app)/Contents/Frameworks", unix = "\(e)/lib/wine/x86_64-unix"
         _ = shell("cp -cR '\(fw)'/*.dylib '\(unix)/' 2>/dev/null; cp -c '\(fw)/libinotify.0.dylib' '\(e)/bin/inotify.dylib'")
         _ = shell(linkGStreamer(unix: unix, templateFrameworks: fw))
         // wineserver has no header padding for add_rpath; a same-or-shorter -change is the only option, and DYLD_* never reaches it.
@@ -20,6 +19,6 @@ extension Model {
         try? icd.write(toFile: "\(e)/MoltenVK_icd.json", atomically: true, encoding: .utf8)
         FileManager.default.createFile(atPath: "\(e)/dxmt_extescape", contents: nil)
         let v = shell("'\(e)/bin/wine' --version 2>&1 | head -1")
-        return v.hasPrefix("wine-") ? "  prepared (\(v), dylibs from \(t))\n" : "  prepared, but wine --version failed: \(v.prefix(80))\n"
+        return v.hasPrefix("wine-") ? "  prepared (\(v), dylibs from \(Pins.sikarugirTemplate))\n" : "  prepared, but wine --version failed: \(v.prefix(80))\n"
     }
 }

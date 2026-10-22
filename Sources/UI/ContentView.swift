@@ -66,7 +66,7 @@ struct ContentView: View {
                     Button("D3DMetal…") { showD3DM = true }.controlSize(.small)
                         .help("Apple's Game Porting Toolkit for Direct3D 12: install from Apple's download, read and accept Apple's license, or remove it.")
                     Button("Update…") { m.updateDrivers() }.controlSize(.small).disabled(m.busy)
-                        .help("Runs the weekly driver update now: DXMT and DXVK from their GitHub releases, D3DMetal from the newest Sikarugir template. Previous versions are kept as .old.")
+                        .help("Checks DXMT and DXVK upstream releases and asks before replacing anything (the current version is kept as .old). D3DMetal comes only from your own Game Porting Toolkit install.")
                     Button("Folder…") { NSWorkspace.shared.open(URL(fileURLWithPath: driversDir)) }.controlSize(.small)
                 }
                 Text(m.driverStatus.1 + (m.driverUpdates.isEmpty ? "" : " · " + m.driverUpdates)).font(.caption).foregroundStyle(.secondary).lineLimit(1)

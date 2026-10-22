@@ -12,6 +12,50 @@ enum Pins {
         url: "https://dl.winehq.org/wine/wine-mono/9.4.0/wine-mono-9.4.0-x86.msi",
         sha256: "cf6173ae94b79e9de13d9a74cdb2560a886fc3d271f9489acb1cfdbd961cacb2",
         license: "MIT, with bundled components under their own licences", source: "WineHQ (same bytes as github.com/madewokherd/wine-mono, release wine-mono-9.4.0)")
+
+    // Sikarugir builds, kept until upstream replacements pass the test suite (decision of 2026-10-23). The engine is pinned by its tarball's
+    // SHA-256. The template archive also contains Apple's D3DMetal, so it is never pinned or kept whole: its d3dmetal and apple_gptk folders
+    // are skipped while extracting, and only the parts Cosmopolitan uses are pinned, by tree hash.
+    static let sikarugirEngine = Pinned(name: "Wine engine (Sikarugir build)", version: "WS12WineSikarugir10.0_8", file: "WS12WineSikarugir10.0_8.tar.xz",
+        url: "https://github.com/Sikarugir-App/Engines/releases/download/v1.0/WS12WineSikarugir10.0_8.tar.xz",
+        sha256: "2a6bcf2a3bf13cddf825599b6bc1e3659cbf71e1282c6d77141a92f6ac8d4c68", license: "LGPL-2.1-or-later (Wine)", source: "github.com/Sikarugir-App/Engines release v1.0")
+    static let sikarugirTemplate = "Template-1.0.24"
+    static let sikarugirTemplateURL = "https://github.com/Sikarugir-App/Template/releases/download/v1.0/Template-1.0.24.tar.xz"
+    static let templateTrees: [String: String] = [
+        "SharedSupport/renderer/dxmt": "dc2158758a80b4256db6dd7a36bc6cd263442dec3c460829b8fe6e0bda159469",
+        "SharedSupport/renderer/dxvk": "4f9bfaa4a162a4c4913c53d1e5fc97e7711687e572a7757b6fd255d820353e27",
+        "SharedSupport/renderer/dxvk3": "c5803dcdc37e85a3729e528ab408ab54fedbfa78759a0ce40771674d8cceec2a",
+        "SharedSupport/renderer/d9vk": "6c60009d88e3e1b92c1173026b484ec57c327659a039676543e3d736a2e3a290",
+        "SharedSupport/renderer/cnc_ddraw": "c054c05a28dd5a4bad4603ce12c1f988003393faa110f7d0141e7758a065bebf",
+        "Frameworks/GStreamer.framework": "33d20e3dbca70e3890b9e2bccf7e4386b12b5b1a72085519604390f73967dda8",
+        "Frameworks/*.dylib": "d7568ebb416e510696a7fc0f5f89a86402ceb6dc851ad4dfeb897e5d9b128d10",
+    ]
+    static func templateTree(_ app: String, _ part: String) -> String? {
+        part == "Frameworks/*.dylib" ? treeHash(app + "/Contents/Frameworks", include: { !$0.contains("/") && $0.hasSuffix(".dylib") })
+                                     : treeHash(app + "/Contents/" + part)
+    }
+    // The pinned template folder, only if every pinned part matches.
+    static func verifiedTemplate() -> String? {
+        let app = NSHomeDirectory() + "/Library/Application Support/Sikarugir/Template/\(sikarugirTemplate).app"
+        return templateTrees.allSatisfy({ templateTree(app, $0.key) == $0.value }) ? app : nil
+    }
+}
+
+// Tree hash of a folder: SHA-256 over sorted lines "relative/path <sha256>" for regular files and "relative/path -> <target>" for symlinks.
+// `include` filters relative paths (nil = everything). Used to pin folders that come out of an archive we can't pin as a whole.
+func treeHash(_ dir: String, include: ((String) -> Bool)? = nil) -> String? {
+    let fm = FileManager.default
+    guard let en = fm.enumerator(atPath: dir) else { return nil }
+    var lines: [String] = []
+    for case let rel as String in en where include?(rel) ?? true {
+        let p = dir + "/" + rel
+        if let t = try? fm.destinationOfSymbolicLink(atPath: p) { lines.append("\(rel) -> \(t)"); continue }
+        var isDir: ObjCBool = false
+        guard fm.fileExists(atPath: p, isDirectory: &isDir), !isDir.boolValue, let h = sha256File(p) else { continue }
+        lines.append("\(rel) \(h)")
+    }
+    let text = lines.sorted().map { $0 + "\n" }.joined()
+    return SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()
 }
 
 func sha256File(_ path: String) -> String? {
