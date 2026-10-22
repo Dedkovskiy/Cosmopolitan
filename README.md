@@ -8,8 +8,9 @@ automatically. Free, open, unnotarized.
 
 Download `Cosmopolitan-<version>.dmg` from the [latest release](https://github.com/cyber-prinzesse/Cosmopolitan/releases/latest),
 open it and drag the app to Applications. The app is not notarized (no paid Apple Developer
-account), so macOS blocks the first open: right-click `Cosmopolitan.app` → **Open** → **Open**
-in the dialog. Once is enough.
+account), so macOS blocks the first open with "Apple could not verify…". Click **Done**, then open
+**System Settings → Privacy & Security**, scroll to "Cosmopolitan was blocked", click **Open Anyway**
+and confirm. Once is enough. (Right-click → Open no longer bypasses this on macOS 15 and later.)
 
 Updates arrive inside the app (Sparkle). Every GitHub release carries the signed update
 feed, so publishing a release with `scripts/release.sh` is what ships an update; the `.zip`
