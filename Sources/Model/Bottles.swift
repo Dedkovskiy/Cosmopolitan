@@ -5,7 +5,8 @@ extension Model {
         let t = template == "auto" ? "win10" : template
         try? FileManager.default.createDirectory(atPath: "\(bottlesDir)/\(name)", withIntermediateDirectories: true)
         // mscoree/mshtml off: skips Mono/Gecko download prompts during creation.
-        wine(name, ["wineboot", "-u"], env: ["WINEDLLOVERRIDES": "mscoree,mshtml="]) {
+        // No driver slots for wineboot: with them active it copies the drivers' DLLs into system32/syswow64 as if they were Wine's own.
+        wine(name, ["wineboot", "-u"], env: ["WINEDLLOVERRIDES": "mscoree,mshtml="], drivers: []) {
             // Controllers via SDL as XInput gamepads (raw HID only reaches DirectInput, and Steam Input can't drive it under Wine).
             self.wine(name, ["reg", "add", "HKLM\\System\\CurrentControlSet\\Services\\winebus", "/v", "DisableHidraw", "/t", "REG_DWORD", "/d", "1", "/f"]) {
                 self.wine(name, ["winecfg", "-v", t]) {

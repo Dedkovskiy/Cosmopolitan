@@ -31,6 +31,8 @@ extension Model {
             Thread.sleep(forTimeInterval: s)
         }
         if !FileManager.default.fileExists(atPath: Model.dotnetMarker(r)) { Model.ensureDotNet(r) { self.log += $0 } }
+        let moved = Model.cleanDriverCopies(selected)   // driver DLLs that ended up in system32/syswow64 (exact-hash copies only)
+        if !moved.isEmpty { log += "Moved \(moved.count) driver copies out of the system folders:\n" + moved.map { "  " + $0 }.joined(separator: "\n") + "\n" }
         _ = sh("\(ws) -w")   // wait for the server to exit = registry flushed to disk
         busy = false
         log += "Repair done. Run Troubleshoot again to confirm, then relaunch your program.\n"

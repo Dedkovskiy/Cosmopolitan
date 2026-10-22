@@ -120,8 +120,13 @@ extension Model {
                 noteExeChange(p); readiness[p] = launchNeeds(p); await Task.yield()
             }
             scanAVX(programs)   // background disassembly for exes not scanned yet; tiles update as results arrive
-            // .NET programs in a bottle whose runtime was never probed: run the probe in the background, so their light reflects a real run.
             let pfx = "\(bottlesDir)/\(bottle)", fm = FileManager.default
+            // Once per bottle: driver DLLs that older versions copied into system32/syswow64 are moved out (exact-hash copies only).
+            if !cliMode, !fm.fileExists(atPath: pfx + "/.driver-copies-checked") {
+                fm.createFile(atPath: pfx + "/.driver-copies-checked", contents: nil)
+                Task.detached { let moved = Model.cleanDriverCopies(bottle); if !moved.isEmpty { await MainActor.run { self.log += "\(bottle): moved \(moved.count) driver copies out of the system folders:\n" + moved.map { "  " + $0 }.joined(separator: "\n") + "\n" } } }
+            }
+            // .NET programs in a bottle whose runtime was never probed: run the probe in the background, so their light reflects a real run.
             if !cliMode, !fm.fileExists(atPath: Model.dotnetMarker(pfx)), !fm.fileExists(atPath: Model.dotnetFailMarker(pfx)), programs.contains(where: { exeImports($0).contains("mscoree.dll") }) {
                 Task.detached { Model.probeDotNet(pfx); await MainActor.run { if bottle == self.selected { for p in self.programs { self.readiness[p] = self.launchNeeds(p) } } } }
             }

@@ -1,7 +1,20 @@
 import SwiftUI
 
+// A bottle's drivers/<name> is a link to the installed backend folder, so each bottle can later point at its own backend version.
+func bottleDriverDir(_ bottle: String, _ d: String) -> String {
+    let dir = "\(bottlesDir)/\(bottle)/drivers", link = dir + "/" + d, fm = FileManager.default
+    guard fm.fileExists(atPath: "\(bottlesDir)/\(bottle)") else { return "\(driversDir)/\(d)" }
+    if (try? fm.destinationOfSymbolicLink(atPath: link)) != "\(driversDir)/\(d)" {
+        try? fm.createDirectory(atPath: dir, withIntermediateDirectories: true); try? fm.removeItem(atPath: link)
+        try? fm.createSymbolicLink(atPath: link, withDestinationPath: "\(driversDir)/\(d)")
+    }
+    return link
+}
 // Environment a bottle's programs are launched with (also used by Dock shortcuts).
 func launchEnv(_ bottle: String, drivers: [String]? = nil) -> [String: String] {   // drivers: per-launch override of the bottle's DRIVERS
+    // Every Wine run in a bottle (launches and reg/winecfg helpers alike) builds this environment first, so a stale prefix is updated
+    // here, without driver slots; otherwise Wine's own automatic update runs inside the first command and copies the drivers in.
+    updatePrefixIfStale("\(bottlesDir)/\(bottle)")
     // VK_DRIVER_FILES: registers MoltenVK with the Vulkan loader; without it DXVK has no GPU (res=-9).
     var e = ["WINEPREFIX": "\(bottlesDir)/\(bottle)", "WINEDEBUG": "-all",
              "VK_DRIVER_FILES": engineDir + "/MoltenVK_icd.json",
@@ -31,7 +44,7 @@ func launchEnv(_ bottle: String, drivers: [String]? = nil) -> [String: String] {
     // process including steamwebhelper (which must stay on Wine's own D3D) → "Steamwebhelper is not responding".
     for d in drivers ?? driverList(e, bottle: bottle) {
         guard let s = driverSlot[d], driverUsable(d) else { continue }   // a driver that can't create a device here would only crash the game
-        e["WINEDLLPATH_" + s] = "\(driversDir)/\(d)/wine"
+        e["WINEDLLPATH_" + s] = bottleDriverDir(bottle, d) + "/wine"   // loaded per launch from the bottle's own drivers/ folder; never copied into system32
         // libd3dshared dlopen()s this value as-is; the dylibs are reached through the symlinked x86_64-unix path, so @rpath can't find the framework on its own.
         if d == "d3dmetal" { e["D3DMETAL_FRAMEWORK_PATH"] = "\(driversDir)/d3dmetal/external/D3DMetal.framework/D3DMetal" }
     }
