@@ -1,12 +1,21 @@
 #!/bin/zsh
-# Driver stress test: builds the tests, prints each launch-check plan, launches every test through Cosmopolitan (the same path as a tile)
-# and prints the result lines. Exit 1 unless every test wrote an OK line. Usage: tests/stress/run.sh [bottle]   (default bottle: Steam)
-cd "${0:A:h}"; ./build.sh "${1:-Steam}" >/dev/null || exit 1
-A="${0:A:h}/../../Cosmopolitan.app/Contents/MacOS/Cosmopolitan"; O="$HOME/Library/Application Support/Cosmopolitan/bottles/${1:-Steam}/drive_c/StressTest"
-for e in "$O"/stress-*.exe; do "$A" --check "${1:-Steam}" "$e" | head -1; "$A" --launch "${1:-Steam}" "$e" 30 >/dev/null 2>&1; done
-echo; cat "$O/results.txt"
-# Known failure, printed but not fatal: 64-bit DirectDraw run right after a cnc-ddraw program in the same Wine session gets a stale 800x600
-# primary surface inside Wine (Windows' display mode stays right, no registry change, D3D9/11 after it are fine). 64-bit DirectDraw games
-# don't exist in practice; the test passes when run on its own.
-n=$(ls "$O"/stress-*.exe | wc -l | tr -d ' '); ok=$(grep -c ' OK ' "$O/results.txt"); xf=$(grep -c '^ddraw *x64 *FAIL' "$O/results.txt")
-echo "$ok of $n passed, $xf known failure"; (( ok + xf == n ))
+# Driver stress suite, isolated: the test build with a throwaway home; one golden throwaway bottle gets the test programs, and every test
+# runs in its own fresh APFS clone of it (clean prefix, registry and display state per test). Prints each launch-check plan and result.
+# Exit 1 unless every test wrote an OK line. Order: default, or ORDER=reverse / ORDER=random (seed printed) to prove order independence.
+source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
+tw_snapshot
+ct --newbottle G >/dev/null 2>&1 && stress_build G || { print "could not create the golden bottle"; exit 1; }
+exes=("$(tprefix G)"/drive_c/StressTest/stress-*.exe(N:t))
+case "$ORDER" in reverse) exes=(${(Oa)exes});; random) SEED=${SEED:-$RANDOM}; print "random order, seed $SEED"; exes=($(print -l $exes | awk -v s=$SEED 'BEGIN{srand(s)} {print rand() "\t" $0}' | sort | cut -f2-));; esac
+: > "$T/results.txt"; n=0
+for e in $exes; do
+  b="T$((n++))"; cp -cR "$(tprefix G)" "$(tprefix $b)"; : > "$(tprefix $b)/drive_c/StressTest/results.txt"
+  ct --check $b "$(tprefix $b)/drive_c/StressTest/$e" 2>/dev/null | head -1 | sed -e 's/; not installed through a store — run only if you trust where it came from//' -e 's/; AVX scan pending//'
+  ct --launch $b "$(tprefix $b)/drive_c/StressTest/$e" 45 >/dev/null 2>&1   # 45 s: room for a fresh prefix's first start under load
+  r=$(cat "$(tprefix $b)/drive_c/StressTest/results.txt"); print -r -- "${r:-${e%.exe}: no result line}" >> "$T/results.txt"
+  twineserver $b -k 2>/dev/null; rm -rf "$(tprefix $b)"
+done
+print; cat "$T/results.txt"
+ok=$(grep -c ' OK ' "$T/results.txt"); print "$ok of $n passed (each in its own fresh prefix)"
+tw_check || exit 1
+(( ok == n ))

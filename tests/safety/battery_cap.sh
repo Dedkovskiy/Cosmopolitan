@@ -10,8 +10,7 @@ mkkit() { local d="$1" v="$2"; shift 2; local fw="$d/redist/lib/external/D3DMeta
   print -r -- '{\rtf1 Fake license}' > "$d/License.rtf"; print -r -- "{\\rtf1 Evaluation environment for Windows games $v README}" > "$d/Read Me.rtf"; }
 mkkit "$T/kit3" 3.0 D3DM_SUPPORT_DXR D3DM_ENABLE_METALFX
 mkkit "$T/kit4" 4.0b3 D3DM_SUPPORT_DXR D3DM_ENABLE_METALFX D3DM_MTL4 D3DM_MAX_FPS
-ct --newbottle B >/dev/null 2>&1; mkdir -p "$(tprefix B)/drive_c/StressTest"
-cp "$REAL_SUPPORT/bottles/Steam/drive_c/StressTest/stress-d3d12-64.exe" "$(tprefix B)/drive_c/StressTest/" || fail "need stress-d3d12-64.exe"
+ct --newbottle B >/dev/null 2>&1; stress_build B || fail "could not build the stress test programs into the throwaway bottle"
 EXE="$(tprefix B)/drive_c/StressTest/stress-d3d12-64.exe"
 note() { COSMO_TEST_ON_BATTERY=1 ct --check B "$EXE" 2>&1 | grep -o 'battery[^;]*' | head -1; }
 envcap() { COSMO_TEST_ON_BATTERY=1 ct --print-env B 2>&1 | grep -E '^(D3DM_MAX_FPS|DXMT_CONFIG)=' | tr '\n' ' '; }

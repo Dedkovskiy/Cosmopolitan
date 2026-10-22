@@ -9,8 +9,7 @@ rq() { twine L reg query "$1" /v "$2" 2>/dev/null | tr -d '\r' | awk -v n="$2" '
 os() { tail -1 "$(tprefix L)/drive_c/StressTest/results.txt" | grep -o 'os=.*'; }
 tw_snapshot
 ct --newbottle L >/dev/null 2>&1; [[ -d "$(tprefix L)/drive_c" ]] || fail "bottle not created"
-mkdir -p "$(tprefix L)/drive_c/StressTest"; cp "$TESTENV_REPO/.cache/stress-dotnet.exe" "$(tprefix L)/drive_c/StressTest/" || fail "build .cache/stress-dotnet.exe first"
-cp "$REAL_SUPPORT/bottles/Steam/drive_c/StressTest/stress-d3d11-64.exe" "$(tprefix L)/drive_c/StressTest/" || fail "need stress-d3d11-64.exe"
+stress_build L || fail "could not build the stress test programs into the throwaway bottle"
 DOT="$(tprefix L)/drive_c/StressTest/stress-dotnet.exe"; D11="$(tprefix L)/drive_c/StressTest/stress-d3d11-64.exe"
 
 # 1. Leftovers from before the ledger, exactly as in your Steam bottle: win98 + virtual desktop + Retina off for stress-dotnet.exe.

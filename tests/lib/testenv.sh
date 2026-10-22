@@ -49,15 +49,17 @@ _tw_state() {
   for b in "$REAL_SUPPORT"/bottles/*(N/); do
     print "bottle $b:t: $(cd "$b" && find . -maxdepth 1 ! -name '*.reg' ! -name 'drive_c' ! -name 'dosdevices' ! -name '.update-timestamp' | sort | tr '\n' ' ')"
     for f in cosmopolitan.env cosmopolitan.apps; do [[ -f "$b/$f" ]] && print "  $f $(shasum -a 256 "$b/$f" | cut -c1-16)"; done
-    [[ -d "$b/options" ]] && print "  options $(cd "$b/options" && find . -type f -exec stat -f '%N %z %m' {} + | sort | shasum -a 256 | cut -c1-16)"
+    [[ -d "$b/options" ]] && print "  options-settings $(cd "$b/options" && find . -type f -name '*.env' -exec stat -f '%N %z %m' {} + | sort | shasum -a 256 | cut -c1-16)"
   done
   if [[ -f "$REAL_LOG" ]]; then print "log-inode: $(stat -f %i "$REAL_LOG")"; fi
   print "steam-pid: $(pgrep -f 'Steam.steam\.exe' | head -1)"
   print "app-pid: $(pgrep -f "$TESTENV_REPO/Cosmopolitan.app/Contents/MacOS/Cosmopolitan\$" | head -1)"
 }
+# Cache markers your running Cosmopolitan app updates by itself (scan results, playtime, AVX counts, the registry ledger).
+_tw_markers() { emulate -L zsh; for b in "$REAL_SUPPORT"/bottles/*(N/); do [[ -d "$b/options" ]] && print "$b:t $(cd "$b/options" && find . -type f ! -name '*.env' -exec stat -f '%N %z %m' {} + | sort | shasum -a 256 | cut -c1-16)"; done; }
 _tw_regs() { emulate -L zsh; for b in "$REAL_SUPPORT"/bottles/*(N/); do for r in system user userdef; do [[ -f "$b/$r.reg" ]] && print "$b:t/$r.reg $(shasum -a 256 "$b/$r.reg" | cut -c1-16)"; done; done; }
 tw_snapshot() {
-  TW_STATE="$(_tw_state)"; TW_REGS="$(_tw_regs)"
+  TW_STATE="$(_tw_state)"; TW_REGS="$(_tw_regs)"; TW_MARKERS="$(_tw_markers)"
   TW_LOG_SIZE=$( [[ -f "$REAL_LOG" ]] && stat -f %z "$REAL_LOG" || print 0 )
   TW_LOG_HEAD=$( [[ -f "$REAL_LOG" ]] && head -c "$TW_LOG_SIZE" "$REAL_LOG" | shasum -a 256 | cut -c1-16 )
 }
@@ -70,6 +72,12 @@ tw_check() {
   if [[ -f "$REAL_LOG" ]]; then
     local size=$(stat -f %z "$REAL_LOG") head=$(head -c "$TW_LOG_SIZE" "$REAL_LOG" | shasum -a 256 | cut -c1-16)
     (( size >= TW_LOG_SIZE )) && [[ "$head" == "$TW_LOG_HEAD" ]] || { ok=0; print "TRIPWIRE: your Cosmopolitan.log was truncated or rewritten"; }
+  fi
+  local markers="$(_tw_markers)"
+  if [[ "$markers" != "$TW_MARKERS" ]]; then
+    if [[ -n "$(pgrep -f "$TESTENV_REPO/Cosmopolitan.app/Contents/MacOS/Cosmopolitan\$|/Applications/Cosmopolitan.app/Contents/MacOS/Cosmopolitan\$")" ]]; then
+      print "note: cache markers in your bottle's options folder changed while your Cosmopolitan app was running (it updates them itself; the test build can't reach them)"
+    else ok=0; print "TRIPWIRE: cache markers in your bottle's options folder changed with no Cosmopolitan app running"; fi
   fi
   if [[ "$regs" != "$TW_REGS" ]]; then
     if [[ "$1" == sandboxed && -n "$(pgrep -f 'Steam.steam\.exe')" ]]; then
@@ -93,3 +101,5 @@ testenv_cleanup() {
 }
 # pid of the wineserver serving a throwaway prefix (it holds /tmp/.wine-<uid>/server-<dev>-<ino>/lock), empty if none
 tserverpid() { local p="$(tprefix "$1")"; [[ -d "$p" ]] || return 0; lsof -t "$(printf '/tmp/.wine-%d/server-%x-%x/lock' $(id -u) $(stat -f '%d %i' "$p"))" 2>/dev/null | head -1; }
+# Builds the stress test programs into a throwaway bottle (C:\StressTest), with the mingw compilers and the bottle's own Wine Mono.
+stress_build() { HOME="$TH" "$TESTENV_REPO/tests/stress/build.sh" "$1" >/dev/null 2>&1 && [[ -f "$(tprefix "$1")/drive_c/StressTest/stress-d3d11-64.exe" ]]; }

@@ -31,8 +31,7 @@ ls "$TS"/_to_delete/*/O/system32/d3d11.dll >/dev/null 2>&1 || fail "moved copies
 print "ok: cleanup moved exactly the 8 copies, restored Wine's own, left the look-alike"
 
 # 3. Drivers still load per launch, from the bottle's drivers/ links.
-mkdir -p "$W/../StressTest"; S="$REAL_SUPPORT/bottles/Steam/drive_c/StressTest"
-cp "$S/stress-d3d11-64.exe" "$S/stress-ddraw-32.exe" "$W/../StressTest/" 2>/dev/null || fail "test programs missing (run tests/stress/build.sh once)"
+stress_build O || fail "could not build the stress test programs into the throwaway bottle"; : > "$W/../StressTest/results.txt"
 for e in d3d11-64 ddraw-32; do ct --launch O "$W/../StressTest/stress-$e.exe" 25 >/dev/null 2>&1; done
 lnk="$(tprefix O)/drivers/dxmt"; [[ -L "$lnk" && "${lnk:A}" == "${R:A}/dxmt" ]] || fail "no per-bottle drivers/dxmt link to the backend"
 grep -c " OK " "$W/../StressTest/results.txt" | grep -q 2 || fail "programs did not render after cleanup: $(cat "$W/../StressTest/results.txt")"
