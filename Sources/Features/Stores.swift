@@ -94,7 +94,9 @@ extension Model {
             self.log += self.legendary == nil ? "Legendary did not install; see the log above.\n" : "Legendary installed. Stores… › Sign in to Epic Games.\n"
         }
     }
-    static let epicLoginURL = URL(string: "https://legendary.gl/epiclogin")!   // Epic's own login; the page then shows an authorizationCode
+    // Sign out first, then log in with the redirect to the code endpoint: a fresh login is the only place Epic shows pending policy
+    // acceptances (an already-signed-in browser otherwise lands on "corrective_action_required" instead of the authorizationCode).
+    static let epicLoginURL = URL(string: "https://www.epicgames.com/id/logout?redirectUrl=" + "https://www.epicgames.com/id/login?redirectUrl=https%3A%2F%2Fwww.epicgames.com%2Fid%2Fapi%2Fredirect%3FclientId%3D34a02cf8f4414e29b15921876da36f9a%26responseType%3Dcode".addingPercentEncoding(withAllowedCharacters: .alphanumerics)!)!
     func epicSignIn(code: String) {
         guard let l = legendary else { return }
         let c = code.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
