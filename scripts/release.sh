@@ -22,9 +22,9 @@ rm -rf dist/dmgroot
 REPO=${COSMO_REPO:-cyber-prinzesse/Cosmopolitan}
 # The Keychain lets generate_keys (which created the key) read it but prompts for generate_appcast, which fails when no one can click;
 # so the key is exported to a private temp file for the few seconds of signing and shredded again.
-KEYFILE=$(mktemp) && ./Sparkle/bin/generate_keys -x "$KEYFILE" >/dev/null
+KEYDIR=$(mktemp -d) && KEYFILE="$KEYDIR/sparkle.key" && ./Sparkle/bin/generate_keys -x "$KEYFILE" >/dev/null   # refuses an existing file
 rm -rf dist/appcast; mkdir -p dist/appcast && cp "dist/Cosmopolitan-$COSMO_VERSION.zip" dist/appcast/ && ./Sparkle/bin/generate_appcast --ed-key-file "$KEYFILE" --download-url-prefix "https://github.com/$REPO/releases/download/v$COSMO_VERSION/" dist/appcast/ && mv dist/appcast/appcast.xml dist/appcast.xml && rm -rf dist/appcast
-rm -P -f "$KEYFILE"
+rm -P -f "$KEYFILE"; rmdir "$KEYDIR"
 grep -q "sparkle:edSignature" dist/appcast.xml || { echo "appcast is not signed, aborting"; exit 1; }
 echo "Release $COSMO_VERSION ($COSMO_BUILD):"
 echo "  dist/Cosmopolitan-$COSMO_VERSION.zip        the app (Sparkle update item)"
