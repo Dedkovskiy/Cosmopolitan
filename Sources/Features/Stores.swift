@@ -199,6 +199,17 @@ extension Model {
     func gogSignedIn() -> Bool {
         lgog != nil && ((try? FileManager.default.attributesOfItem(atPath: NSHomeDirectory() + "/.config/lgogdownloader/galaxy_tokens.json"))?[.size] as? Int ?? 0) > 20
     }
+    // GOG's native Mac client. Its package installs a privileged helper the client refuses to start without (an unpacked copy in
+    // ~/Applications says "Essential components … are missing"), so the package runs through macOS's own administrator prompt.
+    func installNativeGalaxy() {
+        let script = """
+        set -e; brew fetch --cask gog-galaxy >/dev/null; P=$(ls -t ~/Library/Caches/Homebrew/downloads/*galaxy_client*.pkg | head -1)
+        osascript -e "do shell script \\"/usr/sbin/installer -pkg '$P' -target /\\" with administrator privileges"
+        echo "GOG Galaxy (Mac) installed"; open "/Applications/GOG Galaxy.app"
+        """
+        log += "GOG Galaxy (Mac): macOS will ask for your password; the client needs a system helper that only the installer can add.\n"
+        exec("/bin/sh", ["-c", script], env: ["PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"])
+    }
     func installLgog() { exec("/bin/sh", ["-c", "brew install lgogdownloader"], env: ["PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"]) { self.log += self.lgog == nil ? "lgogdownloader did not install; see the log above.\n" : "lgogdownloader installed. Stores… › Sign in to GOG.\n" } }
     // GOG's own login page (what lgogdownloader --browser-login prints); after login the browser lands on embed.gog.com/on_login_success?…code=…
     static let gogLoginURL = URL(string: "https://auth.gog.com/auth?client_id=46899977096215655&redirect_uri=https%3A%2F%2Fembed.gog.com%2Fon_login_success%3Forigin%3Dclient&response_type=code&layout=default&brand=gog")!
