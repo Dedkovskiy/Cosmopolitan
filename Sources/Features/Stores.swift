@@ -73,8 +73,19 @@ extension Model {
                 let p = "\(path)/\(exe.replacingOccurrences(of: "\\", with: "/"))"
                 if fm.fileExists(atPath: p) { epicGames[p] = (id, g["title"] as? String ?? id); out.append(p) }
             }
-            if epicSignedIn() { Task.detached { let s = shell("'\(l)' list --json 2>/dev/null"); if let d = s.data(using: .utf8), let arr = (try? JSONSerialization.jsonObject(with: d)) as? [[String: Any]] {
-                epicOwned = arr.compactMap { g in (g["app_name"] as? String).map { ($0, g["app_title"] as? String ?? $0) } }.sorted { $0.1 < $1.1 } } } }
+            // `list --json` came back empty for this account while the plain listing (with -T for third-party-managed titles) had the
+            // games, so the text form is parsed:  " * Title (App name: xyz | Version: …)"; "  + …" lines are DLC and are skipped.
+            if epicSignedIn() { Task.detached {
+                let s = shell("'\(l)' list --platform Windows -T 2>/dev/null")   // on macOS Legendary defaults to the Mac platform, which lists nothing here
+                var owned: [(id: String, name: String)] = []
+                for line in s.components(separatedBy: "\n") where line.hasPrefix(" * ") {
+                    guard let r = line.range(of: " (App name: ") else { continue }
+                    let title = String(line.dropFirst(3)[..<r.lowerBound]), rest = line[r.upperBound...]
+                    let id = String(rest.prefix { $0 != " " && $0 != "|" && $0 != ")" })
+                    if !id.isEmpty { owned.append((id, title)) }
+                }
+                epicOwned = owned.sorted { $0.1 < $1.1 }
+            } }
         }
         if let g = lgog, gogSignedIn(), gogOwned.isEmpty { Task.detached {
             let s = shell("'\(g)' --list json --platform w 2>/dev/null")
@@ -107,7 +118,7 @@ extension Model {
     func installEpic(_ app: String) {
         guard let l = legendary else { return }
         snapshot("before installing Epic game \(app)")
-        exec(l, ["install", app, "--base-path", "\(bottlesDir)/\(selected)/drive_c/Games/Epic", "-y"], block: false) { self.scan() }
+        exec(l, ["install", app, "--platform", "Windows", "--base-path", "\(bottlesDir)/\(selected)/drive_c/Games/Epic", "-y"], block: false) { self.scan() }
     }
     // Launch through Legendary so the game gets Epic's auth arguments; Legendary runs our loader copy with our env (prefix, drivers, options).
     func launchEpic(_ app: String, exe: String) {
