@@ -20,6 +20,7 @@ extension Model {
             pipe.fileHandleForReading.readabilityHandler = nil
             if block { self.busy = false }
             self.log += code == 0 ? "[done]\n" : "[failed: exit \(code)]\n"
+            if let exe { self.launchExits[exe] = code }
             if let exe, code != 0, Date().timeIntervalSince(started) < 60 { self.triage(exe, code) }   // died right away: look for a known cause
             then?(); self.refresh() } }
         do { try p.run() } catch { log += "Failed: \(error)\n"; busy = false }

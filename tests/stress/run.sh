@@ -11,7 +11,7 @@ case "$ORDER" in reverse) exes=(${(Oa)exes});; random) SEED=${SEED:-$RANDOM}; pr
 for e in $exes; do
   b="T$((n++))"; cp -cR "$(tprefix G)" "$(tprefix $b)"; : > "$(tprefix $b)/drive_c/StressTest/results.txt"
   ct --check $b "$(tprefix $b)/drive_c/StressTest/$e" 2>/dev/null | head -1 | sed -e 's/; not installed through a store — run only if you trust where it came from//' -e 's/; AVX scan pending//'
-  ct --launch $b "$(tprefix $b)/drive_c/StressTest/$e" 45 >/dev/null 2>&1   # 45 s: room for a fresh prefix's first start under load
+  tlaunch $b "$(tprefix $b)/drive_c/StressTest/$e"; print "    exit ${LAUNCH_CODE:-none (still running at 120 s)} after $LAUNCH_TOOK"
   r=$(cat "$(tprefix $b)/drive_c/StressTest/results.txt"); print -r -- "${r:-${e%.exe}: no result line}" >> "$T/results.txt"
   twineserver $b -k 2>/dev/null; rm -rf "$(tprefix $b)"
 done

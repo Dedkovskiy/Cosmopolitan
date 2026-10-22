@@ -20,26 +20,26 @@ twine L reg add "$AD\\stress-dotnet.exe\\Mac Driver" /v RetinaMode /t REG_SZ /d 
 twine L reg add "$AD\\steam.exe\\DllOverrides" /v xinput1_4 /t REG_SZ /d '' /f >/dev/null
 twineserver L -w   # flush to user.reg
 mkdir -p "$(tprefix L)/options"; print -r -- '[{"exe":"steam.exe","key":"HKCU\\Software\\Wine\\AppDefaults\\steam.exe\\DllOverrides","name":"xinput1_4","owner":"bottle","value":""}]' > "$(tprefix L)/options/.registry-ledger.json"
-ct --launch L "$DOT" 25 >/dev/null 2>&1; before=$(os)
+tlaunch L "$DOT" || fail "the .NET test did not exit within 120 s"; print "  stress-dotnet exited with code $LAUNCH_CODE after $LAUNCH_TOOK"; before=$(os)
 [[ "$before" == *" 4.10."* ]] || fail "stale win98 key (Windows 4.10) not in effect before the sweep ($before)"
 out=$(ct --sweep-registry L 2>&1); print -r -- "$out" | grep -A4 "removed"
 [[ "$(rq "$AD\\stress-dotnet.exe" Version)" == "<none>" && "$(rq "$AD\\stress-dotnet.exe\\Explorer" Desktop)" == "<none>" ]] || fail "stale keys still there after the sweep"
 [[ "$(rq "$AD\\steam.exe\\DllOverrides" xinput1_4)" != "<none>" ]] || fail "the sweep removed a bottle setting (Steam's tweak)"
-ct --launch L "$DOT" 25 >/dev/null 2>&1; after=$(os)
+tlaunch L "$DOT" || fail "the .NET test did not exit within 120 s"; print "  stress-dotnet exited with code $LAUNCH_CODE after $LAUNCH_TOOK"; after=$(os)
 [[ "$after" =~ ' (6|[1-9][0-9])\.' ]] || fail ".NET test still on an old Windows version after the sweep ($after)"
 print "ok: stale win98 keys swept; the .NET test went from '$before' to '$after'; Steam's tweak kept"
 
 # 2. A setting turned off is removed at the next launch (MOUSE_CAPTURE option).
-print 'MOUSE_CAPTURE=1' > "$(tprefix L)/options/stress-d3d11-64.exe.env"; ct --launch L "$D11" 20 >/dev/null 2>&1
+print 'MOUSE_CAPTURE=1' > "$(tprefix L)/options/stress-d3d11-64.exe.env"; tlaunch L "$D11" || fail "stress-d3d11-64 did not exit within 120 s"
 [[ "$(rq "$AD\\stress-d3d11-64.exe\\DirectInput" MouseWarpOverride)" == force ]] || fail "MOUSE_CAPTURE did not write its key"
-rm "$(tprefix L)/options/stress-d3d11-64.exe.env"; out=$(ct --launch L "$D11" 20 2>&1)
+rm "$(tprefix L)/options/stress-d3d11-64.exe.env"; out=$(ct --launch L "$D11" 120 2>&1)
 [[ "$(rq "$AD\\stress-d3d11-64.exe\\DirectInput" MouseWarpOverride)" == "<none>" ]] || fail "turned-off MOUSE_CAPTURE left its key"
 print -r -- "ok: turning MOUSE_CAPTURE off removed its key ($(print -r -- "$out" | grep -o "Removed registry settings.*" | head -1))"
 
 # 3. A value the user changed after we wrote it is left alone.
-print 'MOUSE_CAPTURE=1' > "$(tprefix L)/options/stress-d3d11-64.exe.env"; ct --launch L "$D11" 20 >/dev/null 2>&1
+print 'MOUSE_CAPTURE=1' > "$(tprefix L)/options/stress-d3d11-64.exe.env"; tlaunch L "$D11" || fail "stress-d3d11-64 did not exit within 120 s"
 twine L reg add "$AD\\stress-d3d11-64.exe\\DirectInput" /v MouseWarpOverride /t REG_SZ /d enable /f >/dev/null
-rm "$(tprefix L)/options/stress-d3d11-64.exe.env"; ct --launch L "$D11" 20 >/dev/null 2>&1
+rm "$(tprefix L)/options/stress-d3d11-64.exe.env"; tlaunch L "$D11" || fail "stress-d3d11-64 did not exit within 120 s"
 [[ "$(rq "$AD\\stress-d3d11-64.exe\\DirectInput" MouseWarpOverride)" == enable ]] || fail "a user-changed value was removed"
 print "ok: a value changed by the user stays"
 tw_check || fail "your real data changed"

@@ -58,7 +58,13 @@ let updater = SPUStandardUpdaterController(startingUpdater: !isTestBuild, update
         case "--importables": m.log += m.importableBottles().map { "\($0.label)\t\($0.path)" }.joined(separator: "\n") + "\n"
         case "--import": if i + 3 < a.count { m.importBottle(a[i + 2], as: a[i + 3]); RunLoop.main.run(until: Date().addingTimeInterval(60)) }
         case "--tune": if i + 2 < a.count { m.log += m.tuneUnreal(a[i + 2]) ?? "nothing to tune (no settings file yet, or already tuned)\n" }
-        case "--launch": if i + 2 < a.count { m.launch(a[i + 2]); RunLoop.main.run(until: Date().addingTimeInterval(Double(a.count > i + 3 ? a[i + 3] : "30") ?? 30)) }
+        case "--launch": if i + 2 < a.count {   // --launch <bottle> <exe> [max seconds, default 120]: returns when the program exits
+            let exe = a[i + 2], limit = Double(a.count > i + 3 ? a[i + 3] : "120") ?? 120, t0 = Date(), name = (exe as NSString).lastPathComponent
+            m.launch(exe)
+            while m.launchExits[exe] == nil, !m.log.contains("\(name) is already running."), Date().timeIntervalSince(t0) < limit { RunLoop.main.run(until: Date().addingTimeInterval(0.5)) }
+            let took = String(format: "%.1f", Date().timeIntervalSince(t0))
+            m.log += m.launchExits[exe].map { "launch: \(name) exited with code \($0) after \(took) s\n" } ?? "launch: \(name) still running after \(took) s (limit \(Int(limit)) s)\n"
+        }
         case "--check": if i + 2 < a.count { let n = m.launchNeeds(a[i + 2]); m.log += n.note + "drivers override: \(n.drivers ?? ["(bottle setting)"]) verbs: \(n.verbs) overrides: \(n.overrides) env: \(n.env) args: \(n.args) desktop: \(n.desktop) light: \(n.status == .green ? "green" : n.status == .yellow ? "yellow" : "red")\n" }
         case "--status": m.log += "d3dmetal: " + (m.d3dmetalNow.map { "\($0.pretty) from \($0.source); features: " + $0.features.sorted().joined(separator: " ") + (d3dmetalOK ? "; license accepted" : "; license not accepted") } ?? "not installed") + "\n"; m.log += "drivers: \(m.driverStatus.0 == .green ? "green" : m.driverStatus.0 == .yellow ? "yellow" : "red") (\(m.driverStatus.1))\ncontroller: \(m.padStatus.0 == .green ? "green" : m.padStatus.0 == .yellow ? "yellow" : "red") (\(m.padStatus.1))\n"
         default: m.troubleshoot() }

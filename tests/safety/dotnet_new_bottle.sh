@@ -28,8 +28,9 @@ mv "$(tprefix N)/.dotnet-verified" "$T/marker"; l=$(light N "$(tprefix N)/$APP")
 print "ok: green with the probe marker, $l without it"
 
 # 4. Launching re-probes before starting, then the program runs.
-out=$(ct --launch N "$(tprefix N)/$APP" 25 2>&1)
+tlaunch N "$(tprefix N)/$APP" || fail "the .NET program did not exit within 120 s ($LAUNCH_LINE)"
 grep -q "^netprobe ok" "$(tprefix N)/.dotnet-verified" 2>/dev/null || fail "launch did not re-run the probe first"
-[[ "$out" == *"netprobe ok"* || "$out" == *"[done]"* ]] || fail "the .NET program did not run: $(print -r -- "$out" | tail -3)"
+[[ "$LAUNCH_CODE" == 0 ]] || fail "the .NET program exited with code $LAUNCH_CODE"
+print "ok: the launch re-ran the probe, then the program exited with code 0 after $LAUNCH_TOOK"
 tw_check || fail "your real data changed"
 print "PASS dotnet_new_bottle"

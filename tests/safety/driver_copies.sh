@@ -32,13 +32,13 @@ print "ok: cleanup moved exactly the 8 copies, restored Wine's own, left the loo
 
 # 3. Drivers still load per launch, from the bottle's drivers/ links.
 stress_build O || fail "could not build the stress test programs into the throwaway bottle"; : > "$W/../StressTest/results.txt"
-for e in d3d11-64 ddraw-32; do ct --launch O "$W/../StressTest/stress-$e.exe" 25 >/dev/null 2>&1; done
+for e in d3d11-64 ddraw-32; do tlaunch O "$W/../StressTest/stress-$e.exe" || fail "stress-$e did not exit within 120 s"; print "  stress-$e exited with code $LAUNCH_CODE after $LAUNCH_TOOK"; done
 lnk="$(tprefix O)/drivers/dxmt"; [[ -L "$lnk" && "${lnk:A}" == "${R:A}/dxmt" ]] || fail "no per-bottle drivers/dxmt link to the backend"
 grep -c " OK " "$W/../StressTest/results.txt" | grep -q 2 || fail "programs did not render after cleanup: $(cat "$W/../StressTest/results.txt")"
 print "ok: D3D11 (DXMT) and DirectDraw (cnc-ddraw) render, loaded from $(tprefix O | sed "s|$T|<tmp>|")/drivers"
 
 # 4. A stale prefix (as after an engine update): the launch updates it without driver slots first, so nothing gets copied in.
-print 1 > "$(tprefix O)/.update-timestamp"; ct --launch O "$W/../StressTest/stress-d3d11-64.exe" 25 >/dev/null 2>&1
+print 1 > "$(tprefix O)/.update-timestamp"; tlaunch O "$W/../StressTest/stress-d3d11-64.exe" || fail "launch after the prefix update did not exit within 120 s"; print "  launch with prefix update exited with code $LAUNCH_CODE after $LAUNCH_TOOK"
 [[ "$(cat "$(tprefix O)/.update-timestamp")" != 1 ]] || fail "stale prefix was not updated"
 copies O || fail "the prefix update copied driver DLLs into the system folders"
 print "ok: stale prefix updated before the launch, still no driver copies"

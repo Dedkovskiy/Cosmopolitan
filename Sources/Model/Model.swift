@@ -6,6 +6,7 @@ import SwiftUI
     @Published var programs: [String] = []
     @Published var log = engineOK ? "" : "Wine engine not found at \(wineBin)\n"
     @Published var busy = false
+    var launchExits: [String: Int32] = [:]   // exit code of each program started with exe: (the CLI's --launch waits on this)
     var icons: [String: NSImage] = [:]
     @Published var hud = false       // MTL_HUD_ENABLED (Metal performance overlay)
     @Published var retina = false    // Wine Mac Driver RetinaMode
