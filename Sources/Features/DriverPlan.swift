@@ -17,8 +17,9 @@ private let preference: [String: [String]] = [
     "Direct3D 9": ["d9vk", "dxvk3", "dxvk"], "Direct3D 8": ["d9vk", "dxvk3"], "DirectDraw": ["cnc_ddraw"],
 ]
 
-func rendererDLLs(_ d: String, is32: Bool) -> Set<String> {
-    Set(((try? FileManager.default.contentsOfDirectory(atPath: "\(driversDir)/\(d)/wine/\(is32 ? "i386" : "x86_64")-windows")) ?? []).map { $0.lowercased() })
+func rendererDLLs(_ d: String, is32: Bool) -> Set<String> {   // an unusable driver provides nothing, so plans and serves() look past it
+    guard driverUsable(d) else { return [] }
+    return Set(((try? FileManager.default.contentsOfDirectory(atPath: "\(driversDir)/\(d)/wine/\(is32 ? "i386" : "x86_64")-windows")) ?? []).map { $0.lowercased() })
 }
 
 extension Model {

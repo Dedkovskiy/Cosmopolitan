@@ -30,7 +30,7 @@ func launchEnv(_ bottle: String, drivers: [String]? = nil) -> [String: String] {
     // Only the engine's per-slot variables, never plain WINEDLLPATH: tried 2026-10-22, it made DXMT's dxgi/d3d11 the builtin for every
     // process including steamwebhelper (which must stay on Wine's own D3D) → "Steamwebhelper is not responding".
     for d in drivers ?? driverList(e, bottle: bottle) {
-        guard let s = driverSlot[d] else { continue }
+        guard let s = driverSlot[d], driverUsable(d) else { continue }   // a driver that can't create a device here would only crash the game
         e["WINEDLLPATH_" + s] = "\(driversDir)/\(d)/wine"
         // libd3dshared dlopen()s this value as-is; the dylibs are reached through the symlinked x86_64-unix path, so @rpath can't find the framework on its own.
         if d == "d3dmetal" { e["D3DMETAL_FRAMEWORK_PATH"] = "\(driversDir)/d3dmetal/external/D3DMetal.framework/D3DMetal" }
