@@ -20,6 +20,14 @@ extension Model {
         let local = Set(((try? fm.contentsOfDirectory(atPath: dir)) ?? []).map { $0.lowercased() })
         let sys = Set(((try? fm.contentsOfDirectory(atPath: "\(bottlesDir)/\(selected)/drive_c/windows/system32")) ?? []).map { $0.lowercased() })
         let missing = imps.filter { !$0.hasPrefix("api-ms-") && !$0.hasPrefix("ext-ms-") && !builtinDLLs.contains($0) && !local.contains($0) && !sys.contains($0) }
+        // A builtin Wine DLL only loads if its stub file exists in system32 (64-bit) / syswow64 (32-bit). If something deleted the stub
+        // (an uninstaller, a DirectX redist cleanup), the game dies at start with "Library X not found"; put the engine's copy back.
+        let win = "\(bottlesDir)/\(selected)/drive_c/windows", lib = (wineBin as NSString).deletingLastPathComponent + "/../lib/wine"
+        let is32 = peRead(exe).info.machine == 0x14c
+        for d in imps where builtinDLLs.contains(d) && !local.contains(d) {
+            let dst = "\(win)/\(is32 ? "syswow64" : "system32")/\(d)", src = "\(lib)/\(is32 ? "i386" : "x86_64")-windows/\(d)"
+            if !fm.fileExists(atPath: dst), fm.fileExists(atPath: src), (try? fm.copyItem(atPath: src, toPath: dst)) != nil { log += "Restored missing Wine library \(d) for \(name).\n" }
+        }
         var parts: [String] = [], drivers: [String]? = nil
         // Era: 9x-era PE (subsystem 4), Win16 and DirectDraw titles get a per-program virtual desktop with Retina off; DOS goes to DOSBox.
         let era = exeEra(exe)
@@ -40,6 +48,12 @@ extension Model {
             if !d3dmetalInstalled() { parts.append("needs D3DMetal (not installed — Drivers › D3DMetal…)") }
             else if !d3dmetalOK { parts.append("needs D3DMetal — accept Apple's license first (Drivers › D3DMetal…)") }
             else if !cur.contains("d3dmetal") { drivers = cur.filter { !["dxmt", "dxvk", "dxvk3"].contains($0) } + ["d3dmetal"]; parts.append("switching to d3dmetal for this launch") }
+        }
+        // D3DMetal has no 32-bit Direct3D 10/11: a 32-bit game on the D3DMetal set falls back to Wine's OpenGL path and fails its
+        // feature-level check ("requires DX10_0"). DXMT ships 32-bit d3d10/11, so such games get the DXMT set for their launch.
+        if peRead(exe).info.machine == 0x14c, imps.contains(where: { ["d3d11.dll", "d3d10.dll", "d3d10_1.dll", "dxgi.dll", "d3d10core.dll"].contains($0) }),
+           driverList(launchEnvRaw(), bottle: selected).contains("d3dmetal") {
+            drivers = autoDriverSet; parts.append("32-bit Direct3D 10/11: DXMT for this launch (D3DMetal is 64-bit only)")
         }
         var verbs = Array(Set(missing.compactMap { depVerbs[$0] })).sorted()
         // mscoree.dll is a Wine builtin stub; a .NET app only runs if Wine Mono (engine or bottle) or a real .NET Framework is installed.
@@ -111,7 +125,8 @@ extension Model {
             }
             scanAVX(programs)   // background disassembly for exes not scanned yet; tiles update as results arrive
             // Bottle-wide DirectX 12 need: flip the marker, re-check the tiles against the new set, and restart Steam so games started from inside it match.
-            let needs12 = programs.contains { readiness[$0]?.dx12 == true }, marker = dx12Marker(selected)
+            // Store clients (Epic's launcher imports d3d12 for its UI) don't count: they run on their own fixed driver set.
+            let needs12 = programs.contains { readiness[$0]?.dx12 == true && storeDrivers($0) == nil }, marker = dx12Marker(selected)
             if needs12 != FileManager.default.fileExists(atPath: marker), bottle == selected, !cliMode {   // CLI runs see a partial program list; never flip the bottle (and restart Steam) from there
                 if needs12 { FileManager.default.createFile(atPath: marker, contents: nil) } else { try? FileManager.default.removeItem(atPath: marker) }
                 log += needs12 ? "A Direct3D 12 game is installed: this bottle now runs d3dmetal for Direct3D 10/11/12.\n" : "No Direct3D 12 game left: back to dxmt for Direct3D 10/11.\n"

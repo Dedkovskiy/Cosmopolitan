@@ -193,9 +193,18 @@ import SwiftUI
                 }
                 return out
             }
-            var found1 = exes(1); if found1.isEmpty { found1 = exes(4) }
-            guard let exe = found1.max(by: { a, b in
-                let s = { (n: String) in (try? FileManager.default.attributesOfItem(atPath: "\(dir)/\(n)"))?[.size] as? Int ?? 0 }; return s(a) < s(b) }) else { continue }
+            var found1 = exes(2); if found1.isEmpty { found1 = exes(4) }
+            // The game's own exe: name matching the game (Magicka2.exe in engine/) beats bigger extras (an interactive map, an editor).
+            let norm = { (s: String) in s.lowercased().filter { $0.isLetter || $0.isNumber } }
+            let game = norm(val("name")), inst = norm(val("installdir"))
+            func score(_ n: String) -> Int {
+                let base = norm(((n as NSString).lastPathComponent as NSString).deletingPathExtension)
+                var s = min((try? FileManager.default.attributesOfItem(atPath: "\(dir)/\(n)"))?[.size] as? Int ?? 0, 200_000_000) / 10_000_000   // 0–20 by size
+                if base == game || base == inst { s += 100 } else if !base.isEmpty, game.hasPrefix(base) || base.hasPrefix(game) || inst.hasPrefix(base) || base.hasPrefix(inst) { s += 60 }
+                if ["map", "editor", "tool", "config", "settings", "benchmark", "server", "sdk", "manual", "soundtrack"].contains(where: { n.lowercased().contains($0) }) { s -= 80 }
+                return s
+            }
+            guard let exe = found1.max(by: { score($0) < score($1) }) else { continue }
             steamGames["\(dir)/\(exe)"] = (id, val("name"))
             found.append("\(dir)/\(exe)")
         }
