@@ -38,6 +38,34 @@ int cosmo_on_battery(void) COSMO_NOEXCEPT;
 // PIDs whose executable path or argv[0] contains `needle` (excluding the caller); later arguments are ignored on purpose. Returns the number written.
 int cosmo_proc_find(const char *needle, int32_t *pids, int cap) COSMO_NOEXCEPT;
 
+// ---- Compatibility decision: a pure function over plain values (docs/design/compat-gate.md §3.6). Thread-safe, no I/O. ----
+enum { COSMO_API_DDRAW = 1u << 0, COSMO_API_D3D8 = 1u << 1, COSMO_API_D3D9 = 1u << 2, COSMO_API_D3D10 = 1u << 3, COSMO_API_D3D11 = 1u << 4, COSMO_API_D3D12 = 1u << 5 };
+typedef enum { COSMO_BE_NONE = 0, COSMO_BE_D3DMETAL, COSMO_BE_DXMT, COSMO_BE_DXVK, COSMO_BE_VKD3D_PROTON, COSMO_BE_CNC_DDRAW, COSMO_BE_WINED3D, COSMO_BE_COUNT } cosmo_backend;
+typedef enum { COSMO_DB_UNKNOWN = 0, COSMO_DB_KNOWN_GOOD, COSMO_DB_EXPERIMENTAL, COSMO_DB_BROKEN } cosmo_db_status;
+typedef enum { COSMO_USE = 0, COSMO_ASK, COSMO_BLOCK, COSMO_INCOMPATIBLE } cosmo_verdict;
+enum { COSMO_WARN_RAM = 1u << 0, COSMO_WARN_RT_NO_HARDWARE = 1u << 1, COSMO_WARN_AVX512 = 1u << 2 };
+typedef struct {
+    uint32_t apis;                          // COSMO_API_* the game uses
+    uint8_t  is32, kernel_anticheat, needs_avx2, avx512_paths, rt_on_in_game;
+    uint8_t  rosetta_ok, rosetta_avx2_ok;   // from probes (Rosetta runs x86 code; the AVX2 probe program ran)
+    uint8_t  gpu_family;                    // MTLGPUFamilyApple<n>: 7 = M1 … 9 = M3/M4 (hardware ray tracing) … 10 = M5
+    uint32_t ram_gb, game_min_ram_gb;       // game_min_ram_gb from the compatibility DB, 0 = unknown
+    uint32_t serves[COSMO_BE_COUNT];        // per backend: API bits it can serve here (installed, right bitness, capabilities met); 0 = unavailable
+    uint32_t implements[COSMO_BE_COUNT];    // per backend: API bits it implements at all, installed or not (to rank alternatives)
+    uint8_t  db_status[COSMO_BE_COUNT];     // cosmo_db_status for this game
+    uint8_t  failed_here[COSMO_BE_COUNT];   // outcome log: this backend's installed version crashed this game early on this Mac
+    int32_t  game_pin, global_pin, db_known_good;   // cosmo_backend, COSMO_BE_NONE = none
+} cosmo_decision_input;
+typedef struct {
+    int32_t  verdict, row, backend;         // cosmo_verdict; decision-table row 1–11; chosen or proposed cosmo_backend
+    int32_t  options[4];                    // ranked choices for ASK and INCOMPATIBLE; COSMO_BE_NONE means "cancel"
+    uint8_t  option_available[4];           // 0 = shown greyed out (not installed, or can't run here)
+    int32_t  noptions;
+    uint32_t warnings;                      // COSMO_WARN_*
+    int32_t  error;                         // 0 ok, 1 no input, 2 internal error
+} cosmo_decision;
+cosmo_decision cosmo_decide(const cosmo_decision_input *in) COSMO_NOEXCEPT;
+
 #ifdef __cplusplus
 }
 #endif

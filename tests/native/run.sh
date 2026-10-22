@@ -11,6 +11,8 @@ SAN=(-fsanitize=address,undefined -fno-sanitize-recover=all -g -O1)
 xcrun clang++ -std=c++17 -Wall -Wextra -Werror -DCOSMO_TEST_HOOKS "${SAN[@]}" -I$N $N/pe.cpp $N/avxscan.cpp $N/sysinfo.cpp pe_test.cpp \
   -framework IOKit -framework CoreFoundation -o "$O/pe_test"
 "$O/pe_test" "$O/fx64.exe" "$O/fx32.exe" "$O"
+xcrun clang++ -std=c++17 -Wall -Wextra -Werror -DCOSMO_TEST_HOOKS "${SAN[@]}" -I$N $N/decide.cpp decide_test.cpp -o "$O/decide_test"
+"$O/decide_test"
 LLVM=/opt/homebrew/opt/llvm/bin/clang++
 [[ -x $LLVM ]] || { print "fuzzing skipped: Homebrew LLVM not installed (brew install llvm)"; exit 1; }
 mkdir -p "$O/corpus"; cp "$O/fx64.exe" "$O/fx32.exe" "$O/corpus/"
