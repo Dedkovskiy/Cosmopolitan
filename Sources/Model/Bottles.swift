@@ -12,7 +12,8 @@ extension Model {
                     // Restricted by default: no Z: (whole Mac) drive. Programs see C: only. FULL_DISK=1 in cosmopolitan.env restores Z: for a bottle.
                     try? FileManager.default.removeItem(atPath: "\(bottlesDir)/\(name)/dosdevices/z:")
                     self.log += "Bottle \(name): restricted to C: (no access to the Mac's files). Add FULL_DISK=1 to its cosmopolitan.env to widen it.\n"
-                    then?() } } }
+                    let pfx = "\(bottlesDir)/\(name)"   // .NET: Wine Mono from WineHQ (pinned), verified by running the probe program
+                    Task.detached { _ = Model.installWineMono(pfx) { s in Task { @MainActor in self.log += s } }; await MainActor.run { then?() } } } } }
     }
 
     func deleteBottle() {   // to Trash, so it's recoverable

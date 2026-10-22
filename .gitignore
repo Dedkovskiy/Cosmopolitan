@@ -11,3 +11,4 @@ libd3dshared.dylib
 d3dmetal/
 *.d3dmetal
 .build/
+.cache/

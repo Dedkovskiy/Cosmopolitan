@@ -28,6 +28,7 @@ testenv_init() {
     cp "$REAL_SUPPORT/terms-accepted.json" "$TS/" 2>/dev/null
     [[ -f "$REAL_SUPPORT/d3dmetal-license.json" ]] && cp "$REAL_SUPPORT/d3dmetal-license.json" "$TS/"
   fi
+  mkdir -p "$TS/cache"; for f in "$TESTENV_REPO"/.cache/*(N.) "$REAL_SUPPORT"/cache/*(N.); do cp -c "$f" "$TS/cache/" 2>/dev/null; done   # pinned downloads (hash-checked on use)
   print "test env: $T"
 }
 

@@ -30,6 +30,7 @@ extension Model {
             _ = sh("env \(env) '\(wineBin)' cmd /c ping -n \(Int(s) + 30) 127.0.0.1 >/dev/null 2>&1 &")   // a Wine child that outlives the app
             Thread.sleep(forTimeInterval: s)
         }
+        if !FileManager.default.fileExists(atPath: Model.dotnetMarker(r)) { Model.ensureDotNet(r) { self.log += $0 } }
         _ = sh("\(ws) -w")   // wait for the server to exit = registry flushed to disk
         busy = false
         log += "Repair done. Run Troubleshoot again to confirm, then relaunch your program.\n"

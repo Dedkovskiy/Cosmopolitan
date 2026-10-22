@@ -24,5 +24,6 @@ sandbox-exec -p "$(tw_sandbox_profile)" env CFFIXED_USER_HOME="$TH" HOME="$TH" C
 grep -i "deny\|Operation not permitted" "$T/setup.log" | head -3
 [[ $rc == 0 ]] || fail "setup failed in the throwaway home (exit $rc): $(tail -3 "$T/setup.log")"
 [[ -f "$TS/bottles/Games/drive_c/windows/system32/kernel32.dll" ]] || fail "setup made no first bottle in the throwaway home"
+grep -q "^netprobe ok" "$TS/bottles/Games/.dotnet-verified" 2>/dev/null || fail "setup's first bottle has no working .NET (Wine Mono + probe)"
 tw_check sandboxed || fail "your real data changed"
 print "PASS tripwire_setup: setup ran entirely in $TH; your data is unchanged"

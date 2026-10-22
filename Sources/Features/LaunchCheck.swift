@@ -1,7 +1,7 @@
 import SwiftUI
 
 extension Model {
-    struct Needs { var drivers: [String]?; var verbs: [String]; var note: String; var overrides: [(String, String)] = []; var env: [String: String] = [:]; var args: [String] = []; var desktop = false; var winver = ""; var status: Color = .green; var dx12 = false; var anticheat: (Color, String)? = nil; var restartSteam = false }
+    struct Needs { var drivers: [String]?; var verbs: [String]; var note: String; var overrides: [(String, String)] = []; var env: [String: String] = [:]; var args: [String] = []; var desktop = false; var winver = ""; var status: Color = .green; var dx12 = false; var anticheat: (Color, String)? = nil; var restartSteam = false; var needsDotNet = false }
     func launchNeeds(_ exe: String) -> Needs {
         let name = (exe as NSString).lastPathComponent, dir = (exe as NSString).deletingLastPathComponent, fm = FileManager.default
         var imps = exeImports(exe)
@@ -58,12 +58,13 @@ extension Model {
             drivers = plan.drivers; parts.append("using \(plan.drivers.joined(separator: "+")) for this launch")
         }
         var verbs = Array(Set(missing.compactMap { depVerbs[$0] })).sorted()
-        // mscoree.dll is a Wine builtin stub; a .NET app only runs if Wine Mono (engine or bottle) or a real .NET Framework is installed.
+        // .NET: ready only once the probe program has actually run in this bottle (Wine Mono from WineHQ, installed with the bottle).
+        var dotnet = ""   // "", "pending" (not checked yet), "bad" (probe failed)
         if imps.contains("mscoree.dll") {
-            let engine = ((wineBin as NSString).deletingLastPathComponent as NSString).deletingLastPathComponent
-            let win = "\(bottlesDir)/\(selected)/drive_c/windows"
-            let hasNet = [engine + "/share/wine/mono", win + "/mono", win + "/Microsoft.NET/Framework64/v4.0.30319/clr.dll", win + "/Microsoft.NET/Framework/v4.0.30319/clr.dll"].contains { fm.fileExists(atPath: $0) }
-            if hasNet { parts.append(".NET app (Wine Mono present)") } else { verbs.append("dotnet48"); parts.append(".NET app") }
+            let pfx = "\(bottlesDir)/\(selected)"
+            if fm.fileExists(atPath: Model.dotnetMarker(pfx)) { parts.append(".NET app (.NET verified in this bottle)") }
+            else if fm.fileExists(atPath: Model.dotnetFailMarker(pfx)) { dotnet = "bad"; parts.append(".NET doesn't run in this bottle yet — launching it or Repair installs Wine Mono from WineHQ") }
+            else { dotnet = "pending"; parts.append(".NET app (.NET not checked in this bottle yet; checked before the first launch)") }
         }
         // Steam game: what Linux players needed (umu-protonfixes) is what we need too, minus Proton-only knobs.
         var n = Needs(drivers: drivers, verbs: [], note: "", desktop: desktop, winver: template == "auto" ? winver : "", dx12: plan.apis.contains("Direct3D 12") && !plan.is32)
@@ -105,7 +106,8 @@ extension Model {
         // Tile light: red = will not start as is, yellow = starts after automatic work or with a caveat, green = ready.
         let red = !unknown.isEmpty || (!verbs.isEmpty && winetricks == nil) || n.anticheat?.0 == .red || !plan.missing.isEmpty || parts.contains { $0.contains("brew install") || $0.contains("accept Apple's license") }
         let yellow = !verbs.isEmpty || drivers != nil || desktop || n.anticheat != nil || parts.contains { $0.contains("ProtonDB silver") || $0.contains("ProtonDB bronze") || $0.contains("ProtonDB borked") || $0.contains("ProtonDB pending") }
-        n.status = red ? .red : yellow ? .yellow : .green
+        n.needsDotNet = !dotnet.isEmpty
+        n.status = red || dotnet == "bad" ? .red : yellow || dotnet == "pending" ? .yellow : .green
         return n
     }
 
@@ -118,6 +120,11 @@ extension Model {
                 noteExeChange(p); readiness[p] = launchNeeds(p); await Task.yield()
             }
             scanAVX(programs)   // background disassembly for exes not scanned yet; tiles update as results arrive
+            // .NET programs in a bottle whose runtime was never probed: run the probe in the background, so their light reflects a real run.
+            let pfx = "\(bottlesDir)/\(bottle)", fm = FileManager.default
+            if !cliMode, !fm.fileExists(atPath: Model.dotnetMarker(pfx)), !fm.fileExists(atPath: Model.dotnetFailMarker(pfx)), programs.contains(where: { exeImports($0).contains("mscoree.dll") }) {
+                Task.detached { Model.probeDotNet(pfx); await MainActor.run { if bottle == self.selected { for p in self.programs { self.readiness[p] = self.launchNeeds(p) } } } }
+            }
             // Bottle-wide DirectX 12 need: flip the marker, re-check the tiles against the new set, and restart Steam so games started from inside it match.
             // Store clients (Epic's launcher imports d3d12 for its UI) don't count: they run on their own fixed driver set.
             let needs12 = programs.contains { readiness[$0]?.dx12 == true && storeDrivers($0) == nil }, marker = dx12Marker(selected)

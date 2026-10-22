@@ -14,6 +14,10 @@ extension Model {
             let run = go
             go = { Task { @MainActor in await self.stopSteam(); self.tuneSteam(); run() } }
         }
+        if need.needsDotNet {   // .NET program in a bottle where .NET isn't verified: probe, install Wine Mono if needed, then start
+            let pfx = "\(bottlesDir)/\(selected)", run = go
+            go = { Task.detached { _ = Model.ensureDotNet(pfx) { s in Task { @MainActor in self.log += s } }; await MainActor.run { self.readiness[exe] = self.launchNeeds(exe); run() } } }
+        }
         if need.verbs.isEmpty { go() } else {
             snapshot("before installing \(need.verbs.joined(separator: " "))")
             // Runtime missing: let winetricks fetch it into this bottle first (output streams to the log), then start the program.

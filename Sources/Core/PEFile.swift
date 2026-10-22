@@ -18,7 +18,7 @@ let builtinDLLs: Set<String> = {
     return Set(["x86_64-windows", "i386-windows"].flatMap { (try? FileManager.default.contentsOfDirectory(atPath: "\(b)/\($0)")) ?? [] }.map { $0.lowercased() })
 }()
 // Missing DLL -> winetricks verb that supplies it. ponytail: only runtimes Wine has no builtin for; extend when a game asks for more.
-let depVerbs = ["mscoree.dll": "dotnet48", "physxloader.dll": "physx", "physxloader64.dll": "physx", "xlive.dll": "gfw",
+let depVerbs = ["physxloader.dll": "physx", "physxloader64.dll": "physx", "xlive.dll": "gfw",
                 "msvcr71.dll": "vcrun2003", "msvcp71.dll": "vcrun2003", "mfc42.dll": "mfc42", "vb6stkit.dll": "vb6run"]
 let winetricks = ["/opt/homebrew/bin/winetricks", "/usr/local/bin/winetricks"].first { FileManager.default.fileExists(atPath: $0) }
 
