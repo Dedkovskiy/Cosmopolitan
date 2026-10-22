@@ -1,11 +1,12 @@
 import SwiftUI
 import Sparkle
 
-let updater = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
+let updater = SPUStandardUpdaterController(startingUpdater: !isTestBuild, updaterDelegate: nil, userDriverDelegate: nil)
 
 @main struct CosmopolitanApp: App {
     // Terminal use: Cosmopolitan.app/Contents/MacOS/Cosmopolitan --troubleshoot [bottle] | --repair [bottle]  (same code as the buttons)
     init() {
+        enterTestModeIfNeeded()   // first, before any path is computed
         let a = CommandLine.arguments
         let modes = ["--settings", "--setup", "--session-end", "--troubleshoot", "--repair", "--input", "--find", "--status", "--check", "--update", "--launch", "--tune", "--tunesteam", "--newbottle", "--accept-d3dmetal", "--snapshot", "--rollback", "--importables", "--import", "--willitrun", "--bugreport", "--hints", "--offline", "--compress", "--shaders", "--volumes", "--offlineexe", "--uslayout", "--hudocr", "--saves", "--mods", "--addmod", "--mod", "--rumble", "--padmode", "--procs"]   // --launch <bottle> <exe> [seconds]   // --check <bottle> <exe>: dry-run of the launch check
         guard let i = a.firstIndex(where: { modes.contains($0) }) else { return }
@@ -33,7 +34,7 @@ let updater = SPUStandardUpdaterController(startingUpdater: true, updaterDelegat
             print("engine setting      → wine used: \(wineBin)  (installed: \(engineOK))")
             print("autostartSteam      → autostart allowed: \(m.autostartAllowed())")
             print("compatReports       → long session offers a report: \(Model.shouldOfferReport(enabled: UserDefaults.standard.bool(forKey: "compatReports"), seconds: 600, alreadyOffered: false))")
-        case "--setup": let ok = Model.performSetup(engine: engineName) { s, p in print(String(format: "[%3.0f%%] ", p * 100) + s) }; print(ok ? "setup ok" : "setup failed")
+        case "--setup": let ok = Model.performSetup(engine: engineName) { s, p in print(String(format: "[%3.0f%%] ", p * 100) + s) }; print(ok ? "setup ok" : "setup failed"); if !ok { exit(1) }
         case "--session-end": if i + 2 < a.count {   // test the report offer: --session-end <exe> <seconds> [on|off]; prints, never opens anything
             if i + 3 < a.count { UserDefaults.standard.set(a[i + 3] == "on", forKey: "compatReports") }
             let r = m.sessionEnded(a[i + 1], seconds: Double(a[i + 2]) ?? 0, ask: { print("ASK: " + $0); return true }, open: { print("WOULD OPEN (browser form, unsubmitted): " + $0.absoluteString.prefix(140)) })

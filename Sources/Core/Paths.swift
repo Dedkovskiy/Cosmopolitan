@@ -3,6 +3,19 @@ import SwiftUI
 // Engine: open-source Wine 10.0 (Sikarugir build) kept in our own folder. No CodeWeavers code.
 // ponytail: Wine 11.x Staging renders Steam's UI black on macOS 27 (client surface detached); stay on 10.0 until that's fixed upstream.
 let support = NSHomeDirectory() + "/Library/Application Support/Cosmopolitan"
+// Test build (bundle id ending in ".test", made by tests/lib/testenv.sh): its own settings domain and a throwaway home from COSMO_TEST_HOME.
+let isTestBuild = Bundle.main.bundleIdentifier?.hasSuffix(".test") == true
+// Called first thing at startup. Sets HOME and CFFIXED_USER_HOME to the throwaway folder (NSHomeDirectory() follows only the latter), then
+// refuses to run if the support folder, bottles, log or shared bottles would still resolve inside the real home.
+func enterTestModeIfNeeded() {
+    guard isTestBuild else { return }
+    func die(_ s: String) -> Never { FileHandle.standardError.write(Data(("Cosmopolitan test build: " + s + "\n").utf8)); exit(78) }
+    let realHome = getpwuid(getuid()).map { String(cString: $0.pointee.pw_dir) } ?? "/Users"
+    guard let th = ProcessInfo.processInfo.environment["COSMO_TEST_HOME"], th.hasPrefix("/") else { die("COSMO_TEST_HOME must name a throwaway folder (tests/lib/testenv.sh sets it).") }
+    setenv("HOME", th, 1); setenv("CFFIXED_USER_HOME", th, 1)
+    func inside(_ p: String) -> Bool { let r = URL(fileURLWithPath: p).resolvingSymlinksInPath().path; return r == realHome || r.hasPrefix(realHome + "/") }
+    for p in [support, bottlesDir, logPath, Model.sharedRoot] where inside(p) { die("refusing to start: \(p) is inside your real home \(realHome).") }
+}
 // The engine is a setting (Settings › Engine); 10.0_8 is the tested default. Pinned there because 11.x renders Steam black on macOS 27.
 let defaultEngine = "WS12WineSikarugir10.0_8"
 var engineName: String { UserDefaults.standard.string(forKey: "engine") ?? defaultEngine }
