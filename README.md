@@ -15,6 +15,15 @@ Updates arrive inside the app (Sparkle). Every GitHub release carries the signed
 feed, so publishing a release with `scripts/release.sh` is what ships an update; the `.zip`
 is what the updater downloads, the `.dSYM.zip` holds the debug symbols for crash reports.
 
+## Stores
+
+**Stores…** next to the programs grid: *Install GOG Galaxy* and *Install Battle.net* download the official
+installer into the bottle and run it (Battle.net gets Arial and software rendering set up first, the known fixes
+under Wine); their games then appear in the grid. *Epic Games* goes through [Legendary](https://github.com/derrod/legendary)
+(installed with pipx on first use): sign in with the code from Epic's login page, pick a game under *Install Epic
+game*, and it downloads into `C:\Games\Epic` and launches with Epic's auth parameters through this bottle's engine
+and drivers. The Epic launcher itself is not used; it is unreliable under Wine.
+
 ## D3DMetal (Direct3D 12) is optional and comes from Apple
 
 Direct3D 10/11 games run through DXMT out of the box. Direct3D 12 needs Apple's

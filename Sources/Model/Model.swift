@@ -198,6 +198,7 @@ import SwiftUI
             steamGames["\(dir)/\(exe)"] = (id, val("name"))
             found.append("\(dir)/\(exe)")
         }
+        for p in storeGames() where !found.contains(p) { found.append(p) }   // GOG game folders, Legendary-installed Epic games
         // Extras from "Find apps" (dropped silently once uninstalled).
         for p in ((try? String(contentsOfFile: "\(bottlesDir)/\(selected)/cosmopolitan.apps", encoding: .utf8)) ?? "").components(separatedBy: "\n")
             where !p.isEmpty && !found.contains(p) && FileManager.default.fileExists(atPath: p) { found.append(p) }

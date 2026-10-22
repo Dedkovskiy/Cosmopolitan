@@ -16,6 +16,8 @@ struct ContentView: View {
     @State var wirLink = ""
     @State var showImport = false
     @State var rollbackTarget: String? = nil
+    @State var showEpic = false
+    @State var epicCode = ""
     var body: some View {
         HSplitView {
             VStack(alignment: .leading) {
@@ -89,6 +91,7 @@ struct ContentView: View {
                     Button("Find apps") { m.findApps() }.disabled(m.selected.isEmpty || m.busy)
                         .help("Searches the whole C: drive of this bottle for programs the normal scan missed.")
                     Button("Run .exe / .msi…") { pick() }.disabled(m.busy)
+                    storesMenu
                 }
                 ScrollView {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 16)], spacing: 16) {
@@ -152,6 +155,7 @@ struct ContentView: View {
         .sheet(isPresented: $showImport) { importBottlesSheet }
         .sheet(isPresented: $showTerms) { termsSheet }
         .sheet(isPresented: $showD3DM) { d3dmetalSheet }
+        .sheet(isPresented: $showEpic) { epicSheet }
         .sheet(isPresented: Binding(get: { optExe != nil }, set: { if !$0 { optExe = nil } })) { optionsSheet }
         .confirmationDialog("Delete bottle \"\(m.selected)\" and everything in it?", isPresented: $confirmDelete) {
             Button("Delete", role: .destructive) { m.deleteBottle() }

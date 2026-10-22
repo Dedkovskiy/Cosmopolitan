@@ -76,6 +76,8 @@ extension Model {
         if list.components(separatedBy: "\n").contains(where: { $0.hasPrefix(win) }) {
             log += "\((exe as NSString).lastPathComponent) is already running.\n"; return
         }
+        if let g = epicGames[exe] { log += powerHints(); launchEpic(g.id, exe: exe); return }
+        if Store.battlenet.exes.contains(where: { exe.hasSuffix("/" + ($0 as NSString).lastPathComponent) }) { battlenetConfig() }   // keeps the launcher on software rendering
         let (cmd, args) = launchCmd(exe)
         log += powerHints()
         let need = prepare(exe)
