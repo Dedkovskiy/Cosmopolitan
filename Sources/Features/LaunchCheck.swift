@@ -4,6 +4,9 @@ extension Model {
     struct Needs { var drivers: [String]?; var verbs: [String]; var note: String; var overrides: [(String, String)] = []; var env: [String: String] = [:]; var args: [String] = []; var desktop = false; var winver = ""; var status: Color = .green; var dx12 = false; var anticheat: (Color, String)? = nil; var restartSteam = false; var needsDotNet = false }
     func launchNeeds(_ exe: String) -> Needs {
         let name = (exe as NSString).lastPathComponent, dir = (exe as NSString).deletingLastPathComponent, fm = FileManager.default
+        if peRead(exe).info.error != 0 {   // truncated or malformed header: a clear answer instead of a guess
+            var n = Needs(drivers: nil, verbs: [], note: "Launch check \(name): unreadable executable (damaged or truncated file)\n"); n.status = .red; return n
+        }
         var imps = exeImports(exe)
         // Unreal games ship a tiny bootstrap exe; the real one is <Game>/Binaries/Win64/<Game>-Win64-Shipping.exe. Inspect that instead.
         if !imps.contains(where: { $0.hasPrefix("d3d") || $0 == "vulkan-1.dll" || $0 == "opengl32.dll" }), fm.fileExists(atPath: dir + "/Engine"),   // Unreal install root only

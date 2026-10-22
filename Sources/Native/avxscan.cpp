@@ -5,8 +5,11 @@
 // Rare opcodes with unusual immediates may be mis-sized by a byte; the decoder re-synchronises within a few instructions, which is
 // why the result is a count, not a listing.
 #include "cosmo_native.h"
-#include <cstdio>
+#include "native_file.h"
+#include <algorithm>
+#include <cstdlib>
 #include <cstring>
+#include <new>
 #include <vector>
 
 namespace {
@@ -116,26 +119,40 @@ void scan(const uint8_t *code, size_t size, cosmo_avx_result &r) {
 
 } // namespace
 
-extern "C" cosmo_avx_result cosmo_avx_scan(const char *path) {
-    cosmo_avx_result r{};
-    FILE *f = fopen(path, "rb"); if (!f) { r.error = 1; return r; }
-    fseek(f, 0, SEEK_END); long len = ftell(f); fseek(f, 0, SEEK_SET);
-    if (len < 0x100) { fclose(f); r.error = 2; return r; }
-    std::vector<uint8_t> d((size_t)len); if (fread(d.data(), 1, (size_t)len, f) != (size_t)len) { fclose(f); r.error = 1; return r; } fclose(f);
-    auto u16 = [&](size_t o) -> uint32_t { return o + 2 <= d.size() ? d[o] | (d[o + 1] << 8) : 0; };
-    auto u32 = [&](size_t o) -> uint32_t { return o + 4 <= d.size() ? u16(o) | (u16(o + 2) << 16) : 0; };
-    if (d[0] != 'M' || d[1] != 'Z') { r.error = 2; return r; }
-    size_t pe = u32(0x3C); if (pe + 24 > d.size() || u32(pe) != 0x00004550) { r.error = 2; return r; }
-    uint16_t machine = (uint16_t)u16(pe + 4); if (machine != 0x8664) { r.error = 3; return r; }
-    uint16_t nsec = (uint16_t)u16(pe + 6), optsize = (uint16_t)u16(pe + 20);
-    size_t sec = pe + 24 + optsize;
-    for (uint16_t s = 0; s < nsec; s++) {
-        size_t h = sec + (size_t)s * 40; if (h + 40 > d.size()) break;
-        uint32_t rawsize = u32(h + 16), rawptr = u32(h + 20), chars = u32(h + 36);
-        bool code = (chars & 0x00000020) || (chars & 0x20000000);   // IMAGE_SCN_CNT_CODE | IMAGE_SCN_MEM_EXECUTE
-        if (!code || rawptr >= d.size()) continue;
-        size_t n = rawsize; if (rawptr + n > d.size()) n = d.size() - rawptr;
-        r.code_bytes += n; scan(d.data() + rawptr, n, r);
+namespace {
+// Untrusted input: headers and code sections come through the bounded reader; at most 96 sections and 1 GiB per section are scanned.
+void avx_scan(const char *path, cosmo_avx_result &r) {
+#ifdef COSMO_TEST_HOOKS
+    if (getenv("COSMO_NATIVE_TEST_THROW")) throw std::bad_alloc();
+#endif
+    cosmo::File f(path);
+    if (!f.ok()) { r.error = 1; return; }
+    uint8_t mz[2];
+    uint32_t pe, sig, machine, nsec, optsize;
+    if (f.size() < 0x100 || !f.read(0, mz, 2) || mz[0] != 'M' || mz[1] != 'Z' || !f.u32(0x3C, pe) || !f.u32(pe, sig) || sig != 0x00004550) { r.error = 2; return; }
+    if (!f.u16(uint64_t(pe) + 4, machine) || !f.u16(uint64_t(pe) + 6, nsec) || !f.u16(uint64_t(pe) + 20, optsize)) { r.error = 2; return; }
+    if (machine != 0x8664) { r.error = 3; return; }
+    const uint64_t sec = uint64_t(pe) + 24 + optsize;
+    std::vector<uint8_t> code;
+    for (uint32_t s = 0; s < std::min<uint32_t>(nsec, 96); s++) {
+        uint8_t b[40];
+        if (!f.read(sec + uint64_t(s) * 40, b, sizeof b)) break;
+        auto le = [&](int o) { return uint32_t(b[o]) | uint32_t(b[o + 1]) << 8 | uint32_t(b[o + 2]) << 16 | uint32_t(b[o + 3]) << 24; };
+        const uint32_t rawsize = le(16), rawptr = le(20), chars = le(36);
+        const bool exec = (chars & 0x00000020) || (chars & 0x20000000);   // IMAGE_SCN_CNT_CODE | IMAGE_SCN_MEM_EXECUTE
+        if (!exec || rawptr >= f.size()) continue;
+        const size_t n = size_t(std::min<uint64_t>({ uint64_t(rawsize), f.size() - rawptr, uint64_t(1) << 30 }));
+        code.resize(n);
+        if (n == 0 || !f.read(rawptr, code.data(), n)) continue;
+        r.code_bytes += n; scan(code.data(), n, r);
     }
+}
+} // namespace
+
+extern "C" cosmo_avx_result cosmo_avx_scan(const char *path) noexcept {
+    cosmo_avx_result r{};
+    if (!path) { r.error = 1; return r; }
+    try { avx_scan(path, r); }
+    catch (...) { r = cosmo_avx_result{}; r.error = 4; }   // nothing may escape into Swift
     return r;
 }

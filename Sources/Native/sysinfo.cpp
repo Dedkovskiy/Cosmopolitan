@@ -10,7 +10,9 @@
 #include <unistd.h>
 #include <string>
 #include <vector>
+#include <cstdlib>
 #include <cstring>
+#include <new>
 
 namespace {
 std::string cfstr(CFTypeRef v) {
@@ -26,7 +28,7 @@ CFDictionaryRef usage_match(uint32_t page, uint32_t usage) {
 }
 
 // Connected game controllers (gamepads, joysticks, multi-axis), comma-separated product names. Returns the count.
-extern "C" int cosmo_controllers(char *out, size_t cap) {
+static int controllers(char *out, size_t cap) {
     if (cap) out[0] = 0;
     IOHIDManagerRef m = IOHIDManagerCreate(kCFAllocatorDefault, kIOHIDOptionsTypeNone);
     if (!m) return 0;
@@ -51,7 +53,7 @@ extern "C" int cosmo_controllers(char *out, size_t cap) {
 }
 
 // 1 when running on battery, 0 on AC/UPS, -1 unknown.
-extern "C" int cosmo_on_battery(void) {
+static int on_battery() {
     CFTypeRef info = IOPSCopyPowerSourcesInfo(); if (!info) return -1;
     CFStringRef t = IOPSGetProvidingPowerSourceType(info);
     int r = t ? (CFStringCompare(t, CFSTR(kIOPMBatteryPowerKey), 0) == kCFCompareEqualTo ? 1 : 0) : -1;
@@ -59,22 +61,40 @@ extern "C" int cosmo_on_battery(void) {
 }
 
 // PIDs of processes whose executable path or any argument contains `needle` (case-sensitive), excluding the caller. Returns count.
-extern "C" int cosmo_proc_find(const char *needle, int32_t *pids, int cap) {
+static int proc_find(const char *needle, int32_t *pids, int cap) {
     int n = proc_listallpids(nullptr, 0); if (n <= 0) return 0;
     std::vector<pid_t> all(n * 2); n = proc_listallpids(all.data(), (int)(all.size() * sizeof(pid_t))); if (n <= 0) return 0;
     pid_t me = getpid(); int found = 0;
     size_t argmax = 0; { int mib[2] = { CTL_KERN, KERN_ARGMAX }; int am = 0; size_t sz = sizeof am; if (sysctl(mib, 2, &am, &sz, nullptr, 0) == 0) argmax = (size_t)am; }
-    std::vector<char> buf(argmax ? argmax : 65536);
+    std::vector<char> buf((argmax ? argmax : 65536) + 1);   // +1: room for a terminator, whatever the kernel returns
     for (int i = 0; i < n && found < cap; i++) {
         pid_t pid = all[i]; if (pid <= 0 || pid == me) continue;
-        int mib[3] = { CTL_KERN, KERN_PROCARGS2, pid }; size_t sz = buf.size();
+        int mib[3] = { CTL_KERN, KERN_PROCARGS2, pid }; size_t sz = buf.size() - 1;
         if (sysctl(mib, 3, buf.data(), &sz, nullptr, 0) != 0 || sz < sizeof(int)) continue;
+        buf[sz] = 0;
         // layout: argc, exec path, NULs, argv[0], argv[1]… — only the exec path and argv[0] are matched: Wine rewrites argv[0] to the
         // Windows command ("C:\…\steam.exe"), and helper processes carry the parent's path in *later* arguments, which must not count.
         const char *p = buf.data() + sizeof(int), *end = buf.data() + sz;
-        const char *exe = p; p += strlen(p) + 1; while (p < end && *p == 0) p++;
+        const char *exe = p; p += strnlen(p, size_t(end - p)) + 1; while (p < end && *p == 0) p++;
         bool hit = strstr(exe, needle) != nullptr || (p < end && strstr(p, needle) != nullptr);
         if (hit) pids[found++] = pid;
     }
     return found;
+}
+
+// C boundary: noexcept, nothing escapes into Swift. COSMO_TEST_HOOKS builds can force a throw to prove it.
+static void test_throw() {
+#ifdef COSMO_TEST_HOOKS
+    if (getenv("COSMO_NATIVE_TEST_THROW")) throw std::bad_alloc();
+#endif
+}
+extern "C" int cosmo_controllers(char *out, size_t cap) noexcept {
+    try { test_throw(); return controllers(out, cap); } catch (...) { if (out && cap) out[0] = 0; return 0; }
+}
+extern "C" int cosmo_on_battery(void) noexcept {
+    try { test_throw(); return on_battery(); } catch (...) { return -1; }
+}
+extern "C" int cosmo_proc_find(const char *needle, int32_t *pids, int cap) noexcept {
+    if (!needle || !pids || cap <= 0) return 0;
+    try { test_throw(); return proc_find(needle, pids, cap); } catch (...) { return 0; }
 }

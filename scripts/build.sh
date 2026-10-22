@@ -5,7 +5,7 @@ rm -rf Cosmopolitan.app; mkdir -p Cosmopolitan.app/Contents/MacOS Cosmopolitan.a
 # Sparkle (MIT) for auto-updates: framework embedded, EdDSA public key in Info.plist, feed URL set in release.sh's appcast.
 cp -R Sparkle/Sparkle.framework Cosmopolitan.app/Contents/Frameworks/
 # Native C++ module (Sources/Native): compiled once per build, linked into the Swift binary through the bridging header.
-mkdir -p build; for c in Sources/Native/*.cpp; do clang++ -std=c++17 -O2 -c "$c" -o "build/$(basename "${c%.cpp}").o"; done
+mkdir -p build; for c in Sources/Native/*.cpp; do clang++ -std=c++17 -O2 -Wall -Wextra -Werror -c "$c" -o "build/$(basename "${c%.cpp}").o"; done
 # -g keeps debug info; dsymutil moves it into a separate Cosmopolitan.app.dSYM (shipped next to releases, never inside the app).
 swiftc -parse-as-library -O -g -import-objc-header Sources/Native/cosmo_native.h -F Sparkle -framework Sparkle -framework IOKit -Xlinker -rpath -Xlinker @executable_path/../Frameworks -lc++ -o Cosmopolitan.app/Contents/MacOS/Cosmopolitan $(find Sources -name '*.swift' | sort) build/*.o
 dsymutil Cosmopolitan.app/Contents/MacOS/Cosmopolitan -o Cosmopolitan.app.dSYM 2>/dev/null

@@ -13,5 +13,6 @@ let package = Package(
         .executableTarget(name: "Cosmopolitan", dependencies: ["CosmoNative", .product(name: "Sparkle", package: "Sparkle")],
                           path: "Sources", exclude: ["Native"],
                           swiftSettings: [.swiftLanguageMode(.v5)]),
-    ]
+    ],
+    cxxLanguageStandard: .cxx17   // same as scripts/build.sh (clang's default would be C++14)
 )
