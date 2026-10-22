@@ -47,7 +47,7 @@ extension Model {
         // (Wine 11.x still renders Steam black on macOS 27; switching is a tested, manual step).
         let newestEng = shell("curl -s -m 8 https://sikarugir-app.github.io/Engines/EngineList.txt | grep '^WS12WineSikarugir' | head -1")
         // engines/.rejected lists engines already tested and found not to run here; they are not downloaded again.
-        let rejected = ((try? String(contentsOfFile: "\(support)/engines/.rejected", encoding: .utf8)) ?? "").components(separatedBy: "\n")
+        let rejected = ["WS12WineSikarugir11.0_1"] + ((try? String(contentsOfFile: "\(support)/engines/.rejected", encoding: .utf8)) ?? "").components(separatedBy: "\n")   // 11.0_1: children die on macOS 27 (tested)
         if !newestEng.isEmpty, !rejected.contains(newestEng), !FileManager.default.fileExists(atPath: "\(support)/engines/\(newestEng)") {
             out += "↓ engine \(newestEng) — fetching…\n"
             let local = NSHomeDirectory() + "/Library/Application Support/Sikarugir/Engines/\(newestEng).tar.xz"

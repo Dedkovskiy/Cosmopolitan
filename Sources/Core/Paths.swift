@@ -3,9 +3,13 @@ import SwiftUI
 // Engine: open-source Wine 10.0 (Sikarugir build) kept in our own folder. No CodeWeavers code.
 // ponytail: Wine 11.x Staging renders Steam's UI black on macOS 27 (client surface detached); stay on 10.0 until that's fixed upstream.
 let support = NSHomeDirectory() + "/Library/Application Support/Cosmopolitan"
-let wineBin = support + "/engines/WS12WineSikarugir10.0_8/wswine.bundle/bin/wine"
+// The engine is a setting (Settings › Engine); 10.0_8 is the tested default. Pinned there because 11.x renders Steam black on macOS 27.
+let defaultEngine = "WS12WineSikarugir10.0_8"
+var engineName: String { UserDefaults.standard.string(forKey: "engine") ?? defaultEngine }
+var engineDir: String { support + "/engines/\(engineName)/wswine.bundle" }
+var wineBin: String { engineDir + "/bin/wine" }
 let bottlesDir = support + "/bottles"
-let engineOK = FileManager.default.fileExists(atPath: wineBin)
+var engineOK: Bool { FileManager.default.fileExists(atPath: wineBin) }   // re-evaluated: first-run setup installs it while the app runs
 // Drivers live in engines/renderer/<name>/wine; the engine loads a folder's DLLs as builtins when WINEDLLPATH_<slot> points at it.
 // Per-bottle choice is DRIVERS=dxmt,cnc_ddraw in cosmopolitan.env (absent = dxmt). Drop a new renderer folder in and add its slot here.
 let driversDir = support + "/engines/renderer"

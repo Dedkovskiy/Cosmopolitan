@@ -7,7 +7,7 @@ let updater = SPUStandardUpdaterController(startingUpdater: true, updaterDelegat
     // Terminal use: Cosmopolitan.app/Contents/MacOS/Cosmopolitan --troubleshoot [bottle] | --repair [bottle]  (same code as the buttons)
     init() {
         let a = CommandLine.arguments
-        let modes = ["--troubleshoot", "--repair", "--input", "--find", "--status", "--check", "--update", "--launch", "--tune", "--tunesteam", "--newbottle", "--accept-d3dmetal", "--snapshot", "--rollback", "--importables", "--import", "--willitrun", "--bugreport", "--hints", "--offline", "--compress", "--shaders", "--volumes", "--offlineexe", "--uslayout", "--hudocr", "--saves", "--mods", "--addmod", "--mod", "--rumble", "--padmode", "--procs"]   // --launch <bottle> <exe> [seconds]   // --check <bottle> <exe>: dry-run of the launch check
+        let modes = ["--setup", "--session-end", "--troubleshoot", "--repair", "--input", "--find", "--status", "--check", "--update", "--launch", "--tune", "--tunesteam", "--newbottle", "--accept-d3dmetal", "--snapshot", "--rollback", "--importables", "--import", "--willitrun", "--bugreport", "--hints", "--offline", "--compress", "--shaders", "--volumes", "--offlineexe", "--uslayout", "--hudocr", "--saves", "--mods", "--addmod", "--mod", "--rumble", "--padmode", "--procs"]   // --launch <bottle> <exe> [seconds]   // --check <bottle> <exe>: dry-run of the launch check
         guard let i = a.firstIndex(where: { modes.contains($0) }) else { return }
         cliMode = true
         let m = Model()
@@ -29,6 +29,11 @@ let updater = SPUStandardUpdaterController(startingUpdater: true, updaterDelegat
         case "--addmod": if i + 3 < a.count { m.addMod(a[i + 2], from: a[i + 3]) }
         case "--mod": if i + 4 < a.count { m.setMod(a[i + 2], a[i + 3], enabled: a[i + 4] == "on") }
         case "--rumble": m.testRumble(); RunLoop.main.run(until: Date().addingTimeInterval(2))
+        case "--setup": let ok = Model.performSetup(engine: engineName) { s, p in print(String(format: "[%3.0f%%] ", p * 100) + s) }; print(ok ? "setup ok" : "setup failed")
+        case "--session-end": if i + 2 < a.count {   // test the report offer: --session-end <exe> <seconds> [on|off]; prints, never opens anything
+            if i + 3 < a.count { UserDefaults.standard.set(a[i + 3] == "on", forKey: "compatReports") }
+            let r = m.sessionEnded(a[i + 1], seconds: Double(a[i + 2]) ?? 0, ask: { print("ASK: " + $0); return true }, open: { print("WOULD OPEN (browser form, unsubmitted): " + $0.absoluteString.prefix(140)) })
+            print("RESULT: " + r) }
         case "--procs": if i + 2 < a.count { m.log += "pids containing \"\(a[i + 2])\": \(procFind(a[i + 2]))  steamRunning: \(m.steamRunning())  controllers: \(nativeControllers())  battery: \(onBattery())\n" }
         case "--padmode": if i + 2 < a.count { let changed = m.ensureControllerMode(for: a[i + 2]); m.log += "changed: \(changed); hidraw disabled now: \(m.hidrawDisabled())\n" }
         case "--uslayout":   // test: switch to US for 3 s, then restore
@@ -51,5 +56,6 @@ let updater = SPUStandardUpdaterController(startingUpdater: true, updaterDelegat
     var body: some Scene {
         WindowGroup("Cosmopolitan") { ContentView().handlesExternalEvents(preferring: ["launch"], allowing: ["*"]) }   // cosmopolitan://launch?name=<program> goes to the existing window, not a new one (§7.7 via Shortcuts/Siri)
             .commands { CommandGroup(after: .appInfo) { Button("Check for Updates…") { updater.checkForUpdates(nil) } } }
+        Settings { SettingsView() }
     }
 }

@@ -54,6 +54,11 @@ import SwiftUI
     var lastMemWarn = Date.distantPast                 // memory advisor rate limit
     @Published var artVersion = 0                      // bumped when cover art or playtime files change, so tiles redraw
     var pauseObservers: [NSObjectProtocol] = []        // pause-in-background observers, one per armed game
+    @Published var showSetup = false           // first-run setup sheet
+    @Published var setupRunning = false
+    @Published var setupProgress = 0.0
+    @Published var setupStep = ""
+    var engineReady: Bool { engineOK }
     @Published var autostartSteam = false              // AUTOSTART_STEAM=1 in cosmopolitan.env: Steam comes up with the app, with the bottle's drivers
     @Published var batterySaver = false   // 60 fps cap in D3DMetal and DXMT, DXMT renders at 2/3 and MetalFX-upscales: far less GPU work on battery
     @Published var metalFX = false        // D3DM_ENABLE_METALFX: a game's DLSS menu option becomes MetalFX temporal upscaling (D3DMetal, macOS 26+)
@@ -78,7 +83,7 @@ import SwiftUI
         Task { @MainActor in await stopSteam(); launch(s) }
     }
     func autostart() {   // a bottle with Steam gets Steam started with the app (AUTOSTART_STEAM=0 in cosmopolitan.env opts out)
-        guard !cliMode, launchEnvRaw()["AUTOSTART_STEAM"] != "0", let s = programs.first(where: { $0.hasSuffix("/Steam/steam.exe") }) else { return }
+        guard !cliMode, UserDefaults.standard.object(forKey: "autostartSteam") as? Bool ?? true, launchEnvRaw()["AUTOSTART_STEAM"] != "0", let s = programs.first(where: { $0.hasSuffix("/Steam/steam.exe") }) else { return }
         launch(s)   // launch() skips it when Steam is already running
     }
     var watchers: [DispatchSourceFileSystemObject] = [], watchedBottle = "", rescanWork: DispatchWorkItem?
@@ -105,7 +110,7 @@ import SwiftUI
     init() {
         refresh()
         checkDriverUpdates()
-        if !cliMode { dailyCleanUp() }
+        if !cliMode { dailyCleanUp(); if setupNeeded { showSetup = true } }
         autostart()
         // Pad on/off and driver folders change outside the app; re-check every 5 s (one ioreg call, ~30 ms).
         Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in Task { @MainActor in self?.updateStatus() } }

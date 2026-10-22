@@ -128,12 +128,14 @@ extension Model {
         // background; when the installed list changed, scan once more.
         if let l = legendary {
             let cacheFile = "\(bottlesDir)/\(selected)/options/.epic-installed.json"
-            Task.detached { [weak self] in
-                let fresh = shell("'\(l)' list-installed --json 2>/dev/null")
-                let old = (try? String(contentsOfFile: cacheFile, encoding: .utf8)) ?? ""
-                guard !fresh.isEmpty, fresh != old else { return }
-                try? fresh.write(toFile: cacheFile, atomically: true, encoding: .utf8)
-                await MainActor.run { self?.scan() }
+            Task { @MainActor in   // the slow part runs detached; the rescan happens back on the main actor
+                let changed = await Task.detached { () -> Bool in
+                    let fresh = shell("'\(l)' list-installed --json 2>/dev/null")
+                    let old = (try? String(contentsOfFile: cacheFile, encoding: .utf8)) ?? ""
+                    guard !fresh.isEmpty, fresh != old else { return false }
+                    try? fresh.write(toFile: cacheFile, atomically: true, encoding: .utf8); return true
+                }.value
+                if changed { self.scan() }
             }
         }
         if legendary != nil, let data = try? Data(contentsOf: URL(fileURLWithPath: "\(bottlesDir)/\(selected)/options/.epic-installed.json")),

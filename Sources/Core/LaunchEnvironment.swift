@@ -4,7 +4,7 @@ import SwiftUI
 func launchEnv(_ bottle: String, drivers: [String]? = nil) -> [String: String] {   // drivers: per-launch override of the bottle's DRIVERS
     // VK_DRIVER_FILES: registers MoltenVK with the Vulkan loader; without it DXVK has no GPU (res=-9).
     var e = ["WINEPREFIX": "\(bottlesDir)/\(bottle)", "WINEDEBUG": "-all",
-             "VK_DRIVER_FILES": support + "/engines/WS12WineSikarugir10.0_8/wswine.bundle/MoltenVK_icd.json",
+             "VK_DRIVER_FILES": engineDir + "/MoltenVK_icd.json",
              "MVK_CONFIG_RESUME_LOST_DEVICE": "1", "MVK_CONFIG_FAST_MATH_ENABLED": "1",
              "MVK_CONFIG_LOG_LEVEL": "1",   // errors only: MoltenVK otherwise prints its 150-line extension list for every VkInstance (Qt apps make six at startup)
              // Video/audio decoding (Media Foundation, DirectShow) goes through GStreamer; the framework comes from the Sikarugir template.

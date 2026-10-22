@@ -157,6 +157,7 @@ struct ContentView: View {
         .sheet(isPresented: $showSnaps) { snapshotsSheet }
         .sheet(isPresented: $showImport) { importBottlesSheet }
         .sheet(isPresented: $showTerms) { termsSheet }
+        .sheet(isPresented: Binding(get: { m.showSetup && !showTerms }, set: { m.showSetup = $0 })) { setupSheet }
         .sheet(isPresented: $showD3DM) { d3dmetalSheet }
         .sheet(isPresented: Binding(get: { loginStore != nil }, set: { if !$0 { loginStore = nil } })) { storeLoginSheet }
         .sheet(isPresented: Binding(get: { optExe != nil }, set: { if !$0 { optExe = nil } })) { optionsSheet }

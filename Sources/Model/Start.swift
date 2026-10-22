@@ -4,6 +4,7 @@ extension Model {
     func start(_ need: Needs, _ cmd: String, _ args: [String], exe: String, block: Bool = false, restartSteam: Bool = false, runner: (@MainActor () -> Void)? = nil) {
         // runner: something other than `wine <cmd>` does the actual start (Legendary for Epic games); everything around it stays the same.
         var go = runner ?? { self.wine(self.selected, [cmd] + args + need.args, block: block, env: need.env, drivers: need.drivers, exe: exe) }
+        offerReportAfterSession(exe)
         focusAutomation(exe); pauseInBackground(exe, anticheat: need.anticheat != nil); trackPlaytime(exe); scanUntrusted(exe); forceKeyboardLayout(exe); replay(exe)
         cloudSync(exe, phase: "pull"); if options(exe)["CLOUD_SAVES"] == "1" { whenExits(exe) { self.cloudSync(exe, phase: "push") } }
         if steamGames[exe] != nil || exe.hasSuffix("/Steam/steam.exe"), !steamRunning() { tuneSteam() }   // Steam is down: safe to edit its config

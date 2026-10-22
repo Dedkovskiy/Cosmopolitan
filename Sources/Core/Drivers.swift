@@ -13,4 +13,4 @@ func driverLabel(_ d: String) -> String {
     let v = (try? String(contentsOfFile: "\(driversDir)/\(d)/version", encoding: .utf8))?.components(separatedBy: "\n").first ?? ""
     return v.isEmpty ? d : "\(d)  (\(v))"
 }
-let skipExes = ["unins", "uninst", "crashhandler", "crashpad", "helper", "update", "setup", "redist", "dxsetup", "dotnet", "service", "minidump", "errorreporter", "crash", "report", "overlay", "sysinfo", "streaming"]
+let skipExes = ["unins", "oalinst", "vcredist", "physx", "uninst", "crashhandler", "crashpad", "helper", "update", "setup", "redist", "dxsetup", "dotnet", "service", "minidump", "errorreporter", "crash", "report", "overlay", "sysinfo", "streaming"]
