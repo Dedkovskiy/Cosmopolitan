@@ -69,11 +69,11 @@ extern "C" int cosmo_proc_find(const char *needle, int32_t *pids, int cap) {
         pid_t pid = all[i]; if (pid <= 0 || pid == me) continue;
         int mib[3] = { CTL_KERN, KERN_PROCARGS2, pid }; size_t sz = buf.size();
         if (sysctl(mib, 3, buf.data(), &sz, nullptr, 0) != 0 || sz < sizeof(int)) continue;
-        // layout: argc, exec path, NULs, argv[0..], env… — search the whole block up to the arguments' end (stop at first env-looking entry is overkill; the exe path + args are first).
-        int argc = *(int *)buf.data(); const char *p = buf.data() + sizeof(int), *end = buf.data() + sz;
+        // layout: argc, exec path, NULs, argv[0], argv[1]… — only the exec path and argv[0] are matched: Wine rewrites argv[0] to the
+        // Windows command ("C:\…\steam.exe"), and helper processes carry the parent's path in *later* arguments, which must not count.
+        const char *p = buf.data() + sizeof(int), *end = buf.data() + sz;
         const char *exe = p; p += strlen(p) + 1; while (p < end && *p == 0) p++;
-        bool hit = strstr(exe, needle) != nullptr;
-        for (int a = 0; a < argc && p < end && !hit; a++) { if (strstr(p, needle)) hit = true; p += strlen(p) + 1; }
+        bool hit = strstr(exe, needle) != nullptr || (p < end && strstr(p, needle) != nullptr);
         if (hit) pids[found++] = pid;
     }
     return found;

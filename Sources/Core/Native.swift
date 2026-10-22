@@ -8,7 +8,7 @@ func nativeControllers() -> [String] {
     return n > 0 ? String(cString: buf).components(separatedBy: ", ").filter { !$0.isEmpty } : []
 }
 func onBattery() -> Bool { cosmo_on_battery() == 1 }
-// Processes whose path or arguments contain `needle`; never matches the caller.
+// Processes whose executable path or argv[0] contains `needle` (for Wine processes argv[0] is the Windows command line's exe); never the caller.
 func procFind(_ needle: String) -> [Int32] {
     var pids = [Int32](repeating: 0, count: 256)
     let n = cosmo_proc_find(needle, &pids, Int32(pids.count))

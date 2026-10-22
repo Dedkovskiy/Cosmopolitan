@@ -31,7 +31,7 @@ cosmo_pe_info cosmo_pe_read(const char *path, char *imports, size_t cap);
 int cosmo_controllers(char *out, size_t cap);
 // 1 on battery, 0 on mains, -1 unknown (IOKit power sources).
 int cosmo_on_battery(void);
-// PIDs whose executable path or arguments contain `needle` (excluding the caller). Returns the number written.
+// PIDs whose executable path or argv[0] contains `needle` (excluding the caller); later arguments are ignored on purpose. Returns the number written.
 int cosmo_proc_find(const char *needle, int32_t *pids, int cap);
 
 #ifdef __cplusplus
