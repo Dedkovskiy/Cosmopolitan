@@ -16,7 +16,10 @@ extension Model {
     func installD3DMetal(from picked: String) {
         // Accepts Apple's GPTK .dmg (mounted read-only here, detached afterwards), a mounted volume, or an extracted folder.
         var root = picked, mount = ""
-        if picked.lowercased().hasSuffix(".dmg") {
+        // Already open in Finder (double-clicked): a second attach fails "Resource busy", so use that mount and leave it attached.
+        let open = picked.lowercased().hasSuffix(".dmg") ? sh("hdiutil info | awk -F'\\t' -v img='\(picked)' 'index($0,\"image-path\")==1{hit=(substr($0,index($0,\": \")+2)==img)} /^=+$/{hit=0} hit&&$3~/^\\/Volumes\\//{print $3; exit}'").trimmingCharacters(in: .whitespacesAndNewlines) : ""
+        if !open.isEmpty { root = open }
+        else if picked.lowercased().hasSuffix(".dmg") {
             mount = NSTemporaryDirectory() + "cosmo-gptk-\(ProcessInfo.processInfo.processIdentifier)"
             let r = sh("mkdir -p '\(mount)' && hdiutil attach -nobrowse -readonly -noverify -mountpoint '\(mount)' '\(picked)' 2>&1 | tail -1")
             guard FileManager.default.fileExists(atPath: mount), !r.contains("failed") else { log += "D3DMetal: could not mount \(picked): \(r)\n"; return }
