@@ -10,3 +10,4 @@ D3DMetal.framework/
 libd3dshared.dylib
 d3dmetal/
 *.d3dmetal
+.build/

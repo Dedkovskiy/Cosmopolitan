@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(CosmoNative)
+import CosmoNative   // swift build: the C++ module is a package target (scripts/build.sh uses the bridging header)
+#endif
 
 // Thin Swift faces for the C++ module (Sources/Native). Everything here used to be a shell spawn (ioreg, pmset, ps, pgrep) or a
 // byte-walk in Swift; now it is a direct call, which matters because the status refresh runs every 5 seconds.

@@ -1,4 +1,7 @@
 import SwiftUI
+#if canImport(CosmoNative)
+import CosmoNative   // swift build: the C++ module is a package target (scripts/build.sh uses the bridging header)
+#endif
 
 extension Model {
     // §7.2 / §4.3 AVX: Rosetta hides AVX unless asked. Disassemble the exe once (llvm-objdump reads PE) and count ymm-register uses;
