@@ -21,7 +21,7 @@ Conventions: hardware and OS claims carry **[V n]** (verified, numbered source a
 5. **The crash suite runs only in a test build plus throwaway prefixes**. Each test gets a fresh APFS clone of a pre-booted golden prefix, plus a tripwire that fails the run if your real data changes.
 
 Decisions for you:
-- **D1, interception of launches from Steam's own window** (§3.1): recommended: pre-configure the game before you press Play, then watch and record. A launch-option wrapper only if Steam honours `%command%` and you accept edits to Steam's `localconfig.vdf`.
+- **D1, interception of launches from Steam's own window** (§3.1): **decided 2026-10-23: pre-configure and watch only; no launch-option wrapper yet.**
 - **D2, decision engine language**: C++ now (recommended) or Swift first, migrated in Phase 5.
 - **D3, Wine Mono and redistributables**: install from WineHQ / Microsoft official downloads with pinned hashes (recommended), not from the engine copy.
 - **D4, provenance**: the Sikarugir-sourced stack (Phase 0 §11) stays until upstream replacements pass the suite, or gets replaced now.
@@ -83,7 +83,7 @@ Measured on this Mac:
 | (b3) watch appmanifests | FSEvents on `steamapps/appmanifest_*.acf`: install, update, `StateFlags` | yes: runs the gate after an install or update, before you press Play | flag meanings come from a reverse-engineered header, not Valve: FullyInstalled 4, UpdateRequired 2, UpdateRunning 256, UpdateStarted 1024, AppRunning 8192 [V B34, RE source]; can't see per-launch choices | **yes** |
 | (b4) pre-configured bottle state | per-exe `AppDefaults` registry keys plus the bottle's driver set, kept correct by (b3) | yes: Wine applies `AppDefaults` to every process, whoever starts it | per-exe keys must become owned and cleaned up (Phase 0 N3) | **yes** |
 
-Recommendation (**D1**): (a) + (b3) + (b4) first, (b2) for learning, (b1) only after research and your OK.
+**Decided (D1, 2026-10-23): (a) + (b3) + (b4), with (b2) for learning. No launch-option wrapper (b1) yet.** Today (b3) exists as the folder watcher on `steamapps` (a change triggers a scan and the launch checks), and (b4) only for programs that were launched once through Cosmopolitan, because registry settings are written at launch. Writing them ahead of time from the launch checks is part of the Feature 1 implementation.
 
 ### 3.2 Game probe (`cosmo-probe game <exe>` → JSON)
 
