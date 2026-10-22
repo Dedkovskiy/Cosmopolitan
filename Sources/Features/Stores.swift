@@ -63,6 +63,14 @@ extension Model {
         if !fm.fileExists(atPath: installed), fm.fileExists(atPath: update) { try? fm.copyItem(atPath: update, toPath: installed) }
         else if moved > 0, fm.fileExists(atPath: update) { try? fm.removeItem(atPath: installed); try? fm.copyItem(atPath: update, toPath: installed) }
         if moved > 0 { log += "Epic Games Launcher: finished its pending update (\(moved) files moved into place).\n" }
+        // Epic Online Services: the launcher refuses to install games without it and its own "Restart and Install" goes through the
+        // updater service, which is the loop above. The installer ships with the update (Portal/Extras/EOS); run it silently once.
+        let eosDir = "\(c)/Program Files (x86)/Epic Games/Epic Online Services", eosSetup = "\(launcher)/Portal/Extras/EOS/EpicOnlineServicesInstaller.exe"
+        if !fm.fileExists(atPath: eosDir), fm.fileExists(atPath: eosSetup) {
+            log += "Installing Epic Online Services (needed before the launcher installs games)…\n"
+            // /productid is mandatory; 42c61cfd… is the launcher's own EOS product id (what it logs as ProductId at boot).
+            _ = sh("env \(launchEnv(selected).map { "\($0.key)='\($0.value)'" }.joined(separator: " ")) '\(wineBin)' '\(winPath(eosSetup))' /install /quiet productid=42c61cfdc3d24af5a8333b3284d47240 >/dev/null 2>&1")   // no slash before productid, or it is "missing"
+        }
     }
 
     // Download the official installer into <bottle>/installers and run it. Battle.net also gets Arial (its UI shows boxes without it)
