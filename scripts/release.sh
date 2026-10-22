@@ -38,5 +38,9 @@ if command -v gh >/dev/null && git remote get-url origin >/dev/null 2>&1; then
 Changes:
 $(git log --format='- %s' ${PREV:+$PREV..}HEAD | head -40)"
   gh release create "v$COSMO_VERSION" "dist/Cosmopolitan-$COSMO_VERSION.dmg" "dist/Cosmopolitan-$COSMO_VERSION.zip" "dist/Cosmopolitan-$COSMO_VERSION.dSYM.zip" dist/appcast.xml --title "Cosmopolitan $COSMO_VERSION" --notes "$NOTES" || echo "gh release failed (already exists?)"
+  # gh creates the release as a draft and publishes after the uploads; if that last step fails the release stays a draft and the
+  # feed keeps serving the previous version, so publish explicitly (idempotent).
+  gh release edit "v$COSMO_VERSION" --draft=false --latest >/dev/null 2>&1 || true
+  gh release view "v$COSMO_VERSION" --json isDraft,isLatest --jq '"published: draft=\(.isDraft) latest=\(.isLatest)"'
 else echo "No GitHub remote yet: add one (git remote add origin …) and rerun to upload with gh."; fi
 echo "Note: the app zip contains no D3DMetal; engines/drivers are fetched by the app itself (see dist.sh for the full offline bundle)."
