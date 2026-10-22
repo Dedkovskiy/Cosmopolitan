@@ -7,7 +7,7 @@ let updater = SPUStandardUpdaterController(startingUpdater: true, updaterDelegat
     // Terminal use: Cosmopolitan.app/Contents/MacOS/Cosmopolitan --troubleshoot [bottle] | --repair [bottle]  (same code as the buttons)
     init() {
         let a = CommandLine.arguments
-        let modes = ["--setup", "--session-end", "--troubleshoot", "--repair", "--input", "--find", "--status", "--check", "--update", "--launch", "--tune", "--tunesteam", "--newbottle", "--accept-d3dmetal", "--snapshot", "--rollback", "--importables", "--import", "--willitrun", "--bugreport", "--hints", "--offline", "--compress", "--shaders", "--volumes", "--offlineexe", "--uslayout", "--hudocr", "--saves", "--mods", "--addmod", "--mod", "--rumble", "--padmode", "--procs"]   // --launch <bottle> <exe> [seconds]   // --check <bottle> <exe>: dry-run of the launch check
+        let modes = ["--settings", "--setup", "--session-end", "--troubleshoot", "--repair", "--input", "--find", "--status", "--check", "--update", "--launch", "--tune", "--tunesteam", "--newbottle", "--accept-d3dmetal", "--snapshot", "--rollback", "--importables", "--import", "--willitrun", "--bugreport", "--hints", "--offline", "--compress", "--shaders", "--volumes", "--offlineexe", "--uslayout", "--hudocr", "--saves", "--mods", "--addmod", "--mod", "--rumble", "--padmode", "--procs"]   // --launch <bottle> <exe> [seconds]   // --check <bottle> <exe>: dry-run of the launch check
         guard let i = a.firstIndex(where: { modes.contains($0) }) else { return }
         cliMode = true
         let m = Model()
@@ -29,6 +29,10 @@ let updater = SPUStandardUpdaterController(startingUpdater: true, updaterDelegat
         case "--addmod": if i + 3 < a.count { m.addMod(a[i + 2], from: a[i + 3]) }
         case "--mod": if i + 4 < a.count { m.setMod(a[i + 2], a[i + 3], enabled: a[i + 4] == "on") }
         case "--rumble": m.testRumble(); RunLoop.main.run(until: Date().addingTimeInterval(2))
+        case "--settings":   // what the app decides from each setting, through the same code that uses it
+            print("engine setting      → wine used: \(wineBin)  (installed: \(engineOK))")
+            print("autostartSteam      → autostart allowed: \(m.autostartAllowed())")
+            print("compatReports       → long session offers a report: \(Model.shouldOfferReport(enabled: UserDefaults.standard.bool(forKey: "compatReports"), seconds: 600, alreadyOffered: false))")
         case "--setup": let ok = Model.performSetup(engine: engineName) { s, p in print(String(format: "[%3.0f%%] ", p * 100) + s) }; print(ok ? "setup ok" : "setup failed")
         case "--session-end": if i + 2 < a.count {   // test the report offer: --session-end <exe> <seconds> [on|off]; prints, never opens anything
             if i + 3 < a.count { UserDefaults.standard.set(a[i + 3] == "on", forKey: "compatReports") }

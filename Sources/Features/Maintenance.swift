@@ -73,7 +73,7 @@ extension Model {
     }
     // Once a day, in the background.
     func dailyCleanUp() {
-        guard UserDefaults.standard.object(forKey: "dailyCleanup") as? Bool ?? true else { return }
+        guard UserDefaults.standard.object(forKey: "dailyCleanup") == nil || UserDefaults.standard.bool(forKey: "dailyCleanup") else { return }
         let stamp = support + "/.cleanup"
         if let m = (try? FileManager.default.attributesOfItem(atPath: stamp))?[.modificationDate] as? Date, Date().timeIntervalSince(m) < 86400 { return }
         runCleanUp(silentIfNothing: true)
