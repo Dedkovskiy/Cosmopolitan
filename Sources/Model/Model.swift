@@ -166,7 +166,7 @@ import SwiftUI
         var found: [String] = []
         for root in ["Program Files", "Program Files (x86)"] {
             guard let apps = try? FileManager.default.contentsOfDirectory(atPath: "\(c)/\(root)") else { continue }
-            for app in apps where !app.hasPrefix(".") && !["Common Files", "Internet Explorer", "Windows NT", "Windows Media Player", "Windows Defender", "Microsoft", "Wine", "WindowsApps"].contains(app) {
+            for app in apps where !app.hasPrefix(".") && !["Common Files", "Internet Explorer", "Windows NT", "Windows Media Player", "Windows Defender", "Microsoft", "Wine", "WindowsApps", "GOG Galaxy"].contains(app) {   // Galaxy's Windows client stays blank under Wine on macOS; the Stores menu offers GOG's Mac client instead
                 let base = "\(c)/\(root)/\(app)"
                 let items = (try? FileManager.default.subpathsOfDirectory(atPath: base)) ?? []
                 for i in items where i.lowercased().hasSuffix(".exe") && i.split(separator: "/").count == 1 {

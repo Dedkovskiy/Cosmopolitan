@@ -76,6 +76,10 @@ extension ContentView {
                 Button("Sign out of Epic Games") { m.epicSignOut() }
             }
             Divider()
+            // GOG's Windows client cannot draw its UI under Wine on macOS (Qt 6 web view stays blank on every backend); GOG's native Mac
+            // client is the one that runs. Windows-only builds still come through lgogdownloader below.
+            if FileManager.default.fileExists(atPath: "/Applications/GOG Galaxy.app") { Button("Open GOG Galaxy (Mac app)") { NSWorkspace.shared.open(URL(fileURLWithPath: "/Applications/GOG Galaxy.app")) } }
+            else { Button("Install GOG Galaxy (Mac app, via Homebrew)…") { m.exec("/bin/sh", ["-c", "brew install --cask gog-galaxy"], env: ["PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"]) } }
             if m.lgog == nil { Button("Set up GOG (installs lgogdownloader)") { m.installLgog() } }
             else if !m.gogSignedIn() { Button("Sign in to GOG…") { loginStore = "gog" } }
             else {

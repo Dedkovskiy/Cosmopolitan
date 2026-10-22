@@ -24,8 +24,11 @@ sign in with the code from Epic's login page, pick a game under *Install Epic ga
 `C:\Games\Epic` and launches with Epic's auth parameters through this bottle's engine and drivers. *GOG* goes through
 [lgogdownloader](https://github.com/Sude-/lgogdownloader) (Homebrew): sign in with the address GOG's login page lands
 on, pick a game under *Install GOG game*, and the DRM-free Windows build is installed straight into `C:\GOG Games`.
-The Epic launcher and GOG Galaxy are not used: the Epic launcher is unreliable under Wine, and GOG Galaxy 2.1's Qt 6
-interface fails its Direct3D 11 probe under every layer available on macOS, so its windows never render.
+*Install Epic Games Launcher…* puts Epic's own Windows client into the bottle too (silent MSI); Cosmopolitan starts it with
+`-SkipBuildPatchPrereq` on the DXMT driver set and finishes its pending self-update before each launch, which is what
+otherwise leaves it in a restart loop under Wine. GOG Galaxy's Windows client is not offered: its Qt 6 web view stays
+blank under every Direct3D layer available on macOS (other Mac Wine launchers report the same), so the menu opens or
+installs GOG's native Mac client instead, and Windows-only GOG builds come through lgogdownloader.
 
 ## D3DMetal (Direct3D 12) is optional and comes from Apple
 
