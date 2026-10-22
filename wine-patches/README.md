@@ -34,7 +34,14 @@ git am /path/to/wine-patches/000*.patch
 A macOS build needs a PE cross-compiler (`brew install mingw-w64 lld llvm`) plus `bison` from Homebrew;
 configure with `--enable-archs=i386,x86_64 --disable-tests --without-x`.
 
-## Submitting upstream
+## Upstream policy: these patches cannot be submitted as they are
+WineHQ's contributor policies (https://gitlab.winehq.org/winehq/winehq/-/wikis/home, "No LLM-generated
+code") refuse LLM-generated code, and the user-verification request every new account must file asks you
+to confirm you understand that. The three patches here were written by Claude, so they must not be sent
+as merge requests. They stay useful as documentation and for building your own engine; a contributor who
+reimplements the ideas in their own code (the notes describe what and where) can submit that.
+
+## Submitting upstream (for code you wrote yourself)
 1. Make a GitLab account at https://gitlab.winehq.org and fork `wine/wine`.
 2. One merge request per patch, branch named after it; the commit message is the review text, keep the
    `module: Imperative summary.` first line.
