@@ -26,6 +26,14 @@ enum Store: String, CaseIterable, Identifiable {
 }
 
 extension Model {
+    // Per-client environment. GOG Galaxy is Qt 6 + Chromium: under Wine its D3D11 and OpenGL probes fail, Qt then has no RHI and the
+    // login window (a QQuickWidget hosting a web view) never gets drawn. Software rendering for both makes it appear.
+    func storeEnv(_ exe: String) -> [String: String] {
+        let n = (exe as NSString).lastPathComponent.lowercased()
+        if n.hasPrefix("galaxyclient") { return ["QT_QUICK_BACKEND": "software", "QSG_RHI_BACKEND": "software", "QT_OPENGL": "software",
+                                                 "QTWEBENGINE_CHROMIUM_FLAGS": "--disable-gpu --disable-gpu-compositing --no-sandbox"] }
+        return [:]
+    }
     func storeExe(_ s: Store) -> String? { s.exes.map { "\(bottlesDir)/\(selected)/drive_c/\($0)" }.first { FileManager.default.fileExists(atPath: $0) } }
 
     // Download the official installer into <bottle>/installers and run it. Battle.net also gets Arial (its UI shows boxes without it)
