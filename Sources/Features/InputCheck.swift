@@ -7,7 +7,7 @@ extension Model {
         guard !selected.isEmpty else { return }
         var out = "── Input check ──\n"
         func check(_ ok: Bool, _ what: String, _ fix: String = "") { out += (ok ? "✓ " : "✗ ") + what + (ok || fix.isEmpty ? "" : "  →  \(fix)") + "\n" }
-        let pads = sh("ioreg -r -c IOHIDDevice -l 2>/dev/null | grep -o '\"Product\" = \"[^\"]*\"' | grep -i 'DualSense\\|Wireless Controller\\|Xbox\\|Gamepad' | cut -d'\"' -f4 | sort -u | tr '\\n' ',' | sed 's/,$//'")
+        let pads = nativeControllers().joined(separator: ", ")
         check(!pads.isEmpty, pads.isEmpty ? "macOS sees a controller" : "macOS sees: \(pads)", "turn the pad on (PS/Xbox button) or pair it in Bluetooth settings")
         check(!sh("ioreg -r -c IOHIDDevice -l 2>/dev/null | grep -c -i '\"Product\" = \".*Keyboard'").hasPrefix("0"), "Keyboard present (Wine gets it through the Mac driver)")
         let bus = regSection("system.reg", "System\\CurrentControlSet\\Services\\winebus")

@@ -5,7 +5,7 @@ extension Model {
         var go = { self.wine(self.selected, [cmd] + args + need.args, block: block, env: need.env, drivers: need.drivers, exe: exe) }
         focusAutomation(exe); pauseInBackground(exe, anticheat: need.anticheat != nil); trackPlaytime(exe); scanUntrusted(exe); forceKeyboardLayout(exe); replay(exe)
         cloudSync(exe, phase: "pull"); if options(exe)["CLOUD_SAVES"] == "1" { whenExits(exe) { self.cloudSync(exe, phase: "push") } }
-        if steamGames[exe] != nil || exe.hasSuffix("/Steam/steam.exe"), sh("ps -axo command= | grep -c '^C:.Program Files (x86).Steam.steam.exe'").hasPrefix("0") { tuneSteam() }   // Steam is down: safe to edit its config
+        if steamGames[exe] != nil || exe.hasSuffix("/Steam/steam.exe"), !steamRunning() { tuneSteam() }   // Steam is down: safe to edit its config
         // Steam games inherit the env of the *running* Steam, so a per-launch driver change needs Steam restarted with it.
         if restartSteam {
             log += "Restarting Steam so the game gets its drivers…\n"

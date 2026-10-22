@@ -28,7 +28,7 @@ extension Model {
         launch(exe)
         let name = (exe as NSString).lastPathComponent, drivers = (readiness[exe]?.drivers ?? driverList(launchEnvRaw(), bottle: selected)).joined(separator: "+")
         Task { @MainActor in
-            for _ in 0..<60 { try? await Task.sleep(nanoseconds: 2_000_000_000); if !sh("pgrep -f '\(pgrepPattern(name))' | wc -l").hasPrefix("0") { break } }
+            for _ in 0..<60 { try? await Task.sleep(nanoseconds: 2_000_000_000); if isRunning(name) { break } }
             try? await Task.sleep(nanoseconds: 20_000_000_000)   // past the loading screen
             var samples: [Double] = []
             let tmp = NSTemporaryDirectory() + "cosmo-bench.png"

@@ -4,7 +4,7 @@ extension Model {
     // §8.3 Transparent APFS compression of one game's folder: files stay readable as-is; the OS decompresses on read. Refused while the game runs.
     func compressGame(_ exe: String) {
         let root: String = { if let r = exe.range(of: "/steamapps/common/") { let rest = exe[r.upperBound...]; if let s = rest.firstIndex(of: "/") { return String(exe[..<s]) } }; return (exe as NSString).deletingLastPathComponent }()
-        guard sh("pgrep -f '\(pgrepPattern((exe as NSString).lastPathComponent))' | wc -l").hasPrefix("0") else { log += "Compress: \(appName(exe)) is running; quit it first.\n"; return }
+        guard !isRunning((exe as NSString).lastPathComponent) else { log += "Compress: \(appName(exe)) is running; quit it first.\n"; return }
         busy = true; log += "Compressing \(root) with APFS transparent compression (ditto --hfsCompression)… this reads and rewrites every file once.\n"
         Task.detached {
             let before = shell("du -sk '\(root)' | cut -f1")

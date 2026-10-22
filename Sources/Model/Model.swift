@@ -30,7 +30,7 @@ import SwiftUI
         else if d3d11.isEmpty { driverStatus = (.yellow, "no Direct3D 10/11 driver enabled") }
         else { driverStatus = (.green, list.joined(separator: " + ")) }
         let bus = regSection("system.reg", "System\\CurrentControlSet\\Services\\winebus")
-        let pads = sh("ioreg -r -c IOHIDDevice -l 2>/dev/null | grep -o '\"Product\" = \"[^\"]*\"' | grep -i 'DualSense\\|Wireless Controller\\|Xbox\\|Gamepad' | cut -d'\"' -f4 | sort -u | tr '\\n' ',' | sed 's/,$//'")
+        let pads = nativeControllers().joined(separator: ", ")   // IOKit HID, no shell
         if !bus.contains("\"DisableHidraw\"=dword:00000001") || bus.contains("\"Enable SDL\"=dword:00000000") { padStatus = (.red, "bottle not set for SDL pads → Repair") }
         else if pads.isEmpty { padStatus = (.yellow, "bottle ready, no controller switched on") }
         else { padStatus = (.green, pads) }
@@ -62,7 +62,7 @@ import SwiftUI
         envSet("DXMT_CONFIG", on ? "d3d11.preferredMaxFrameRate=60;d3d11.metalSpatialUpscaleFactor=1.5" : nil)
     }
     // Stop Steam: ask politely, and if it is still up after 20 s (it sometimes ignores -shutdown), end its processes.
-    func steamRunning() -> Bool { !sh("ps -axo command= | grep -c '^C:.Program Files (x86).Steam.steam.exe'").hasPrefix("0") }
+    func steamRunning() -> Bool { isRunning("Steam\\steam.exe") }   // libproc, matches the Windows command line Wine shows
     func stopSteam() async {
         wine(selected, ["C:\\Program Files (x86)\\Steam\\steam.exe", "-shutdown"], block: false)
         for _ in 0..<20 { try? await Task.sleep(nanoseconds: 1_000_000_000); if !steamRunning() { break } }

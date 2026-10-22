@@ -38,8 +38,7 @@ extension Model {
         check(servers == "0" || servers == "1", "One wineserver (\(servers) running)", "two Wine builds share a prefix, or orphans; Repair kills all Wine processes")
         let foreign = sh("ps -axo comm= | grep -v -F '\(engine)' | grep -c 'wine.*-preloader$\\|/wineserver$\\|/wine64$\\|/wine$'")   // binary paths only, not shell command lines
         check(foreign == "0", "No other Wine build running", "quit CrossOver/Whisky/other Wine first (version mismatch)")
-        let pad = sh("ioreg -r -c IOHIDDevice -l 2>/dev/null | grep -o '\"Product\" = \"[^\"]*\"' | grep -c -i 'DualSense\\|Wireless Controller\\|Xbox\\|Gamepad'")   // only devices that are on and connected show up here
-        check(pad != "0", "Game controller connected and turned on", "press PS/Xbox button or pair it in Bluetooth settings; Wine only sees it once macOS does")
+        check(!nativeControllers().isEmpty, "Game controller connected and turned on", "press PS/Xbox button or pair it in Bluetooth settings; Wine only sees it once macOS does")
         let free = sh("df -g \"$HOME\" | awk 'NR==2{print $4}'")
         check((Int(free) ?? 0) > 10, "Disk space (\(free) GB free)", "free up space; Steam downloads fail silently when full")
         let log = (try? String(contentsOfFile: logPath, encoding: .utf8)) ?? ""

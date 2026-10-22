@@ -24,7 +24,7 @@ extension Model {
     }
     func setMod(_ exe: String, _ name: String, enabled: Bool) {
         let mod = "\(modsDir(exe))/\(name)", root = gameRoot(exe), backup = "\(mod)/.backup"
-        guard sh("pgrep -f '\(pgrepPattern((exe as NSString).lastPathComponent))' | wc -l").hasPrefix("0") else { log += "Mods: quit \(appName(exe)) first.\n"; return }
+        guard !isRunning((exe as NSString).lastPathComponent) else { log += "Mods: quit \(appName(exe)) first.\n"; return }
         let files = sh("cd '\(mod)' && find . -type f ! -path './.backup/*' ! -name '.enabled' ! -name '.DS_Store' | sed 's|^\\./||'").split(separator: "\n").map(String.init)
         if enabled {
             snapshot("before enabling mod \(name)")

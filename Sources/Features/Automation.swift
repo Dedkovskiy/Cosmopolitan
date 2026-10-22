@@ -6,8 +6,9 @@ extension Model {
         let name = (exe as NSString).lastPathComponent
         Task { @MainActor in
             let pat = pgrepPattern(name)
-            for _ in 0..<30 { try? await Task.sleep(nanoseconds: 2_000_000_000); if !sh("pgrep -f '\(pat)' | wc -l").hasPrefix("0") { break } }   // wait up to 60 s for it to appear
-            while !sh("pgrep -f '\(pat)' | wc -l").hasPrefix("0") { try? await Task.sleep(nanoseconds: 10_000_000_000) }
+            _ = pat
+            for _ in 0..<30 { try? await Task.sleep(nanoseconds: 2_000_000_000); if isRunning(name) { break } }   // wait up to 60 s for it to appear
+            while isRunning(name) { try? await Task.sleep(nanoseconds: 10_000_000_000) }
             then()
         }
     }
@@ -26,7 +27,7 @@ extension Model {
         let nc = NSWorkspace.shared.notificationCenter
         let o = nc.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak self] n in
             guard let self, let app = n.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else { return }
-            let pids = sh("pgrep -f '\(pgrepPattern(name))'").split(separator: "\n").joined(separator: " ")
+            let pids = procFind(name).map(String.init).joined(separator: " ")
             guard !pids.isEmpty else { return }
             let isGame = app.executableURL?.path.contains("/wswine.bundle/") == true || app.localizedName == appName(exe)
             _ = sh("kill -\(isGame ? "CONT" : "STOP") \(pids) 2>/dev/null")

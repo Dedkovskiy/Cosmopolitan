@@ -1,37 +1,15 @@
 import SwiftUI
 
 // DLL names an .exe imports (PE import directory), lowercased. Drives the launch check.
-func exeImports(_ path: String) -> [String] {
-    guard let d = try? Data(contentsOf: URL(fileURLWithPath: path), options: .mappedIfSafe), d.count > 0x100 else { return [] }
-    func u16(_ o: Int) -> Int { o + 2 <= d.count ? Int(d[o]) | Int(d[o+1]) << 8 : 0 }
-    func u32(_ o: Int) -> Int { o + 4 <= d.count ? u16(o) | u16(o+2) << 16 : 0 }
-    let pe = u32(0x3C); guard u32(pe) == 0x4550 else { return [] }
-    let nSec = u16(pe + 6), opt = pe + 24, plus = u16(opt) == 0x20b, secs = opt + u16(pe + 20)
-    func off(_ rva: Int) -> Int? {
-        for i in 0..<nSec { let s = secs + i * 40; let va = u32(s + 12), sz = max(u32(s + 8), u32(s + 16))
-            if rva >= va && rva < va + sz { return rva - va + u32(s + 20) } }
-        return nil
-    }
-    guard let imp = off(u32(opt + (plus ? 112 : 96) + 8)) else { return [] }
-    var out: [String] = [], i = imp
-    while u32(i + 12) != 0, let n = off(u32(i + 12)) {
-        var e = n; while e < d.count && d[e] != 0 { e += 1 }
-        out.append(String(decoding: d[n..<e], as: UTF8.self).lowercased()); i += 20
-    }
-    return out
-}
+// Native (Sources/Native/pe.cpp): normal AND delay-load imports, so a game that delay-loads d3d12 or xinput is seen too.
+func exeImports(_ path: String) -> [String] { peRead(path).imports }
 // Executable era: "dos" (plain MZ), "win16" (NE), or "pe" with the subsystem major version the linker stamped
 // (4 = Windows 95/NT4 era, 5 = 2000/XP, 6+ = Vista and later). Old ones get a virtual desktop so fullscreen mode switches don't fight Retina.
 // `linker` is OptionalHeader.MajorLinkerVersion: 6 = Visual C++ 6 (1998), 7–9 = VC 2002–2008, 10+ = 2010 and later, 2 = GNU ld (MinGW),
 // which stamps old subsystem numbers on brand-new programs, so the era rules ignore it.
 func exeEra(_ path: String) -> (kind: String, subsystem: Int, linker: Int) {
-    guard let d = try? Data(contentsOf: URL(fileURLWithPath: path), options: .mappedIfSafe), d.count > 0x40, d[0] == 0x4D, d[1] == 0x5A else { return ("", 0, 0) }
-    func u16(_ o: Int) -> Int { o + 2 <= d.count ? Int(d[o]) | Int(d[o+1]) << 8 : 0 }
-    let h = u16(0x3C) | u16(0x3E) << 16
-    guard h + 4 < d.count else { return ("dos", 0, 0) }
-    if d[h] == 0x4E, d[h+1] == 0x45 { return ("win16", 3, 0) }       // "NE"
-    if d[h] == 0x50, d[h+1] == 0x45 { return ("pe", u16(h + 24 + 48), h + 26 < d.count ? Int(d[h + 24 + 2]) : 0) } // "PE"
-    return ("dos", 0, 0)
+    let i = peRead(path).info
+    switch i.kind { case 1: return ("dos", 0, 0); case 2: return ("win16", 3, 0); case 3: return ("pe", Int(i.subsystem_major), Int(i.linker_major)); default: return ("", 0, 0) }
 }
 
 // DLLs the engine provides itself; anything imported that is neither here, nor beside the exe, nor in system32 is really missing.

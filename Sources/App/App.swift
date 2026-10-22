@@ -7,7 +7,7 @@ let updater = SPUStandardUpdaterController(startingUpdater: true, updaterDelegat
     // Terminal use: Cosmopolitan.app/Contents/MacOS/Cosmopolitan --troubleshoot [bottle] | --repair [bottle]  (same code as the buttons)
     init() {
         let a = CommandLine.arguments
-        let modes = ["--troubleshoot", "--repair", "--input", "--find", "--status", "--check", "--update", "--launch", "--tune", "--tunesteam", "--newbottle", "--accept-d3dmetal", "--snapshot", "--rollback", "--importables", "--import", "--willitrun", "--bugreport", "--hints", "--offline", "--compress", "--shaders", "--volumes", "--offlineexe", "--uslayout", "--hudocr", "--saves", "--mods", "--addmod", "--mod", "--rumble", "--padmode"]   // --launch <bottle> <exe> [seconds]   // --check <bottle> <exe>: dry-run of the launch check
+        let modes = ["--troubleshoot", "--repair", "--input", "--find", "--status", "--check", "--update", "--launch", "--tune", "--tunesteam", "--newbottle", "--accept-d3dmetal", "--snapshot", "--rollback", "--importables", "--import", "--willitrun", "--bugreport", "--hints", "--offline", "--compress", "--shaders", "--volumes", "--offlineexe", "--uslayout", "--hudocr", "--saves", "--mods", "--addmod", "--mod", "--rumble", "--padmode", "--procs"]   // --launch <bottle> <exe> [seconds]   // --check <bottle> <exe>: dry-run of the launch check
         guard let i = a.firstIndex(where: { modes.contains($0) }) else { return }
         cliMode = true
         let m = Model()
@@ -29,6 +29,7 @@ let updater = SPUStandardUpdaterController(startingUpdater: true, updaterDelegat
         case "--addmod": if i + 3 < a.count { m.addMod(a[i + 2], from: a[i + 3]) }
         case "--mod": if i + 4 < a.count { m.setMod(a[i + 2], a[i + 3], enabled: a[i + 4] == "on") }
         case "--rumble": m.testRumble(); RunLoop.main.run(until: Date().addingTimeInterval(2))
+        case "--procs": if i + 2 < a.count { m.log += "pids containing \"\(a[i + 2])\": \(procFind(a[i + 2]))  steamRunning: \(m.steamRunning())  controllers: \(nativeControllers())  battery: \(onBattery())\n" }
         case "--padmode": if i + 2 < a.count { let changed = m.ensureControllerMode(for: a[i + 2]); m.log += "changed: \(changed); hidraw disabled now: \(m.hidrawDisabled())\n" }
         case "--uslayout":   // test: switch to US for 3 s, then restore
             let before = Model.currentLayoutID(); m.log += "before: \(before)\n"
