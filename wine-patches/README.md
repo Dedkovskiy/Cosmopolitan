@@ -41,6 +41,17 @@ to confirm you understand that. The three patches here were written by Claude, s
 as merge requests. They stay useful as documentation and for building your own engine; a contributor who
 reimplements the ideas in their own code (the notes describe what and where) can submit that.
 
+## Where they were sent instead (2026-10-22)
+Sikarugir builds the engine this launcher uses and has no written rule against AI-assisted code; each
+submission says openly that it was written with Claude.
+- https://github.com/Sikarugir-App/wine/pull/1 (loader reservation fallback)
+- https://github.com/Sikarugir-App/wine/pull/2 (KeyboardLayout option)
+- https://github.com/Sikarugir-App/wine/pull/3 (ProcessName / application menu)
+- https://github.com/Sikarugir-App/Sikarugir/issues/295 (11.0_1 engine: children exit silently)
+- https://github.com/Gcenx/macOS_Wine_builds/issues/174 (Wine 11.x black Steam window analysis)
+The branches live in the fork https://github.com/cyber-prinzesse/wine (`loader-reserve-fallback`,
+`winemac-keyboard-layout`, `winemac-process-name`, rebased onto Sikarugir's `master` 7298a81).
+
 ## Submitting upstream (for code you wrote yourself)
 1. Make a GitLab account at https://gitlab.winehq.org and fork `wine/wine`.
 2. One merge request per patch, branch named after it; the commit message is the review text, keep the
