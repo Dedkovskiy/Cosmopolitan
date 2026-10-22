@@ -1,0 +1,125 @@
+From 007b2d96d89ed0809e473e3352097d3f86157988 Mon Sep 17 00:00:00 2001
+From: Andrii Rozhanskyi <andrey.rozhanskiy@icloud.com>
+Date: Thu, 22 Oct 2026 06:26:18 +0200
+Subject: [PATCH 2/3] winemac.drv: Add a KeyboardLayout option.
+
+Many games read scan codes that only match a US layout; under a
+Cyrillic, Greek or Hebrew input source WASD and hotkeys stop working.
+The Mac driver follows whatever input source macOS has selected and has
+no way to pick one per application.
+
+Add the string option KeyboardLayout (HKCU\Software\Wine\Mac Driver and
+AppDefaults\<app>\Mac Driver), an input source ID such as
+com.apple.keylayout.US. It is selected when the process starts, enabled
+in the input menu first if needed. Restoring the previous source on exit
+is left to the launcher, which knows when the last process is gone.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+---
+ dlls/winemac.drv/cocoa_app.m    | 38 +++++++++++++++++++++++++++++++++
+ dlls/winemac.drv/macdrv_cocoa.h |  1 +
+ dlls/winemac.drv/macdrv_main.c  | 13 +++++++++++
+ 3 files changed, 52 insertions(+)
+
+diff --git a/dlls/winemac.drv/cocoa_app.m b/dlls/winemac.drv/cocoa_app.m
+index 0e3cbb5..f3f75e1 100644
+--- a/dlls/winemac.drv/cocoa_app.m
++++ b/dlls/winemac.drv/cocoa_app.m
+@@ -2699,6 +2699,44 @@ bool macdrv_select_input_source(TISInputSourceRef input_source)
+     return ret;
+ }
+ 
++/***********************************************************************
++ *              macdrv_select_input_source_by_id
++ *
++ * Select the keyboard input source with the given ID, e.g. "com.apple.keylayout.US".
++ * The source is enabled first if the user does not have it in the input menu.
++ */
++bool macdrv_select_input_source_by_id(const char *source_id)
++{
++    __block bool ret = false;
++
++    OnMainThread(^{
++        CFStringRef id = CFStringCreateWithCString(NULL, source_id, kCFStringEncodingUTF8);
++        const void *filter_keys[2] = { kTISPropertyInputSourceID, kTISPropertyInputSourceIsSelectCapable };
++        const void *filter_values[2] = { id, kCFBooleanTrue };
++        CFDictionaryRef filter_dict;
++        CFArrayRef input_list;
++
++        filter_dict = CFDictionaryCreate(NULL, filter_keys, filter_values, 2,
++                                         &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
++        input_list = TISCreateInputSourceList(filter_dict, true);
++
++        if (input_list && CFArrayGetCount(input_list))
++        {
++            TISInputSourceRef input = (TISInputSourceRef)CFArrayGetValueAtIndex(input_list, 0);
++            CFBooleanRef enabled = TISGetInputSourceProperty(input, kTISPropertyInputSourceIsEnabled);
++
++            if (!enabled || !CFBooleanGetValue(enabled)) TISEnableInputSource(input);
++            ret = (TISSelectInputSource(input) == noErr);
++        }
++
++        if (input_list) CFRelease(input_list);
++        CFRelease(filter_dict);
++        CFRelease(id);
++    });
++
++    return ret;
++}
++
+ bool macdrv_get_ime_open_status(TISInputSourceRef input_source)
+ {
+     __block bool ret;
+diff --git a/dlls/winemac.drv/macdrv_cocoa.h b/dlls/winemac.drv/macdrv_cocoa.h
+index 5157b38..e98edbe 100644
+--- a/dlls/winemac.drv/macdrv_cocoa.h
++++ b/dlls/winemac.drv/macdrv_cocoa.h
+@@ -524,6 +524,7 @@ extern void macdrv_get_input_source_info(CFDataRef* uchr,CGEventSourceKeyboardTy
+                                          TISInputSourceRef* input_source);
+ extern CFArrayRef macdrv_create_input_source_list(void);
+ extern bool macdrv_select_input_source(TISInputSourceRef input_source);
++extern bool macdrv_select_input_source_by_id(const char *source_id);
+ extern bool macdrv_get_ime_open_status(TISInputSourceRef input_source);
+ extern const CFStringRef macdrv_input_source_input_key;
+ extern const CFStringRef macdrv_input_source_type_key;
+diff --git a/dlls/winemac.drv/macdrv_main.c b/dlls/winemac.drv/macdrv_main.c
+index cc3d3b3..fa45642 100644
+--- a/dlls/winemac.drv/macdrv_main.c
++++ b/dlls/winemac.drv/macdrv_main.c
+@@ -265,6 +265,8 @@ static inline DWORD get_config_key(HKEY defkey, HKEY appkey, const char *name,
+  *
+  * Set up the Mac driver options.
+  */
++static char *keyboard_layout_id;   /* input source ID to select at startup, from the KeyboardLayout option */
++
+ static void setup_options(void)
+ {
+     static const WCHAR macdriverW[] = {'\\','M','a','c',' ','D','r','i','v','e','r',0};
+@@ -346,6 +348,14 @@ static void setup_options(void)
+     if (!get_config_key(hkey, appkey, "UsePreciseScrolling", buffer, sizeof(buffer)))
+         use_precise_scrolling = IS_OPTION_TRUE(buffer[0]);
+ 
++    /* Keyboard input source to select when the process starts, by input source ID,
++       e.g. "com.apple.keylayout.US" for games that read scan codes of a US layout. */
++    if (!get_config_key(hkey, appkey, "KeyboardLayout", buffer, sizeof(buffer)) && buffer[0])
++    {
++        keyboard_layout_id = malloc(ARRAY_SIZE(buffer) * 3);
++        ntdll_wcstoumbs(buffer, lstrlenW(buffer) + 1, keyboard_layout_id, ARRAY_SIZE(buffer) * 3, FALSE);
++    }
++
+     if (!get_config_key(hkey, appkey, "OpenGLSurfaceMode", buffer, sizeof(buffer)))
+     {
+         static const WCHAR transparentW[] = {'t','r','a','n','s','p','a','r','e','n','t',0};
+@@ -437,6 +447,9 @@ static NTSTATUS macdrv_init(void *arg)
+         return STATUS_UNSUCCESSFUL;
+     }
+ 
++    if (keyboard_layout_id && !macdrv_select_input_source_by_id(keyboard_layout_id))
++        WARN("keyboard layout %s is not installed\n", debugstr_a(keyboard_layout_id));
++
+     init_user_driver();
+     return STATUS_SUCCESS;
+ }
+-- 
+2.54.0 (Apple Git-157)
+

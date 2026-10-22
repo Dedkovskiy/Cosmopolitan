@@ -1,0 +1,86 @@
+From 1d1faf097d7c71b89f7de4857bc51601e271a357 Mon Sep 17 00:00:00 2001
+From: Andrii Rozhanskyi <andrey.rozhanskiy@icloud.com>
+Date: Thu, 22 Oct 2026 06:26:18 +0200
+Subject: [PATCH 3/3] winemac.drv: Name the application menu after the Windows
+ program.
+
+When Wine runs from the bare loader rather than an .app bundle, the
+application menu reads "Hide Wine" / "Quit Wine" for every program.
+
+Add the string option ProcessName, defaulting to the executable name
+without .exe, and use it for the application menu when the main bundle
+is not an .app. The Dock label is not changed: it comes from the loader
+file's name, and the private LaunchServices display-name item no longer
+affects it on current macOS.
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+---
+ dlls/winemac.drv/cocoa_app.m    |  4 ++++
+ dlls/winemac.drv/macdrv_cocoa.h |  1 +
+ dlls/winemac.drv/macdrv_main.c  | 16 ++++++++++++++++
+ 3 files changed, 21 insertions(+)
+
+diff --git a/dlls/winemac.drv/cocoa_app.m b/dlls/winemac.drv/cocoa_app.m
+index f3f75e1..1df6285 100644
+--- a/dlls/winemac.drv/cocoa_app.m
++++ b/dlls/winemac.drv/cocoa_app.m
+@@ -247,6 +247,10 @@ - (void) transformProcessToForeground:(BOOL)activateIfTransformed
+             // Application menu
+             submenu = [[[NSMenu alloc] initWithTitle:WineLocalizedString(STRING_MENU_WINE)] autorelease];
+             bundleName = [[NSBundle mainBundle] objectForInfoDictionaryKey:(NSString*)kCFBundleNameKey];
++            // Running from the bare loader rather than an .app bundle: name the menu after
++            // the Windows program ("Hide Steam", "Quit Steam") instead of "Wine".
++            if (process_name && ![[[NSBundle mainBundle] bundlePath] hasSuffix:@".app"])
++                bundleName = [NSString stringWithUTF8String:process_name];
+ 
+             if ([bundleName length])
+                 title = [NSString stringWithFormat:WineLocalizedString(STRING_MENU_ITEM_HIDE_APPNAME), bundleName];
+diff --git a/dlls/winemac.drv/macdrv_cocoa.h b/dlls/winemac.drv/macdrv_cocoa.h
+index e98edbe..e6cac05 100644
+--- a/dlls/winemac.drv/macdrv_cocoa.h
++++ b/dlls/winemac.drv/macdrv_cocoa.h
+@@ -116,6 +116,7 @@
+ extern bool retina_enabled;  /* Whether Retina mode is enabled via registry setting. */
+ extern bool retina_on;       /* Whether Retina mode is currently active (enabled and display is in default mode). */
+ extern bool enable_app_nap;
++extern const char *process_name;   /* application menu name when not running from an .app bundle */
+ 
+ static inline CGRect cgrect_mac_from_win(CGRect rect)
+ {
+diff --git a/dlls/winemac.drv/macdrv_main.c b/dlls/winemac.drv/macdrv_main.c
+index fa45642..b32b067 100644
+--- a/dlls/winemac.drv/macdrv_main.c
++++ b/dlls/winemac.drv/macdrv_main.c
+@@ -53,6 +53,7 @@ bool use_precise_scrolling = true;
+ int gl_surface_mode = GL_SURFACE_IN_FRONT_OPAQUE;
+ bool retina_enabled = false;
+ bool enable_app_nap = false;
++const char *process_name = NULL;
+ 
+ pthread_key_t macdrv_thread_data_key = 0;
+ UINT64 app_icon_callback = 0;
+@@ -371,6 +372,21 @@ static void setup_options(void)
+     if (!get_config_key(hkey, appkey, "EnableAppNap", buffer, sizeof(buffer)))
+         enable_app_nap = IS_OPTION_TRUE(buffer[0]);
+ 
++    /* Name shown in the application menu when running from the bare loader.  Defaults
++       to the executable name, so that a game shows up as "Steam" rather than "Wine".
++       (The Dock label comes from the loader's file name; there is no API to change it.) */
++    if (get_config_key(hkey, appkey, "ProcessName", buffer, sizeof(buffer)))
++    {
++        lstrcpyW(buffer, appname);
++        if ((len = lstrlenW(buffer)) > 4 && !wcsicmp(buffer + len - 4, L".exe")) buffer[len - 4] = 0;
++    }
++    if (buffer[0])
++    {
++        char *name = malloc(ARRAY_SIZE(buffer) * 3);
++        ntdll_wcstoumbs(buffer, lstrlenW(buffer) + 1, name, ARRAY_SIZE(buffer) * 3, FALSE);
++        process_name = name;
++    }
++
+     /* Don't use appkey.  The DPI and monitor sizes should be consistent for all
+        processes in the prefix. */
+     if (!get_config_key(hkey, NULL, "RetinaMode", buffer, sizeof(buffer)))
+-- 
+2.54.0 (Apple Git-157)
+

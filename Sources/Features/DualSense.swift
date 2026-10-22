@@ -19,6 +19,9 @@ extension Model {
         guard native == hidrawDisabled() else { return false }   // already in the right mode (native ⇔ hidraw enabled)
         let env = launchEnv(selected).map { "\($0.key)='\($0.value)'" }.joined(separator: " ")
         _ = sh("env \(env) '\(wineBin)' reg add 'HKLM\\System\\CurrentControlSet\\Services\\winebus' /v DisableHidraw /t REG_DWORD /d \(native ? 0 : 1) /f >/dev/null 2>&1")
+        // Wine 11+ also takes a per-device choice (WineBus\Devices\<VID>, value Hidraw); the 10.0 engine ignores it. Written as well, so on a
+        // newer engine only Sony pads (VID 054C) switch and other controllers stay on SDL/XInput.
+        _ = sh("env \(env) '\(wineBin)' reg add 'HKLM\\System\\CurrentControlSet\\Services\\winebus\\Devices\\054c' /v Hidraw /t REG_DWORD /d \(native ? 1 : 0) /f >/dev/null 2>&1")
         log += native ? "DualSense native mode for \(appName(exe)): the game gets the real pad (triggers, haptics, touchpad); XInput games need the next launch to switch back.\n"
                       : "Controller back to XInput mode (SDL) for \(appName(exe)).\n"
         return true
