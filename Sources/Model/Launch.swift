@@ -43,14 +43,14 @@ extension Model {
             let sips = Process(); sips.executableURL = URL(fileURLWithPath: "/usr/bin/sips")
             sips.arguments = ["-s", "format", "icns", tmp, "--out", app + "/Contents/Resources/icon.icns"]
             sips.standardOutput = FileHandle.nullDevice; sips.standardError = FileHandle.nullDevice
-            try? sips.run(); sips.waitUntilExit()
+            runToEnd(sips)
             try? fm.removeItem(atPath: tmp)
             icon = "<key>CFBundleIconFile</key><string>icon</string>"
         }
         let plist = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><plist version=\"1.0\"><dict><key>CFBundleName</key><string>\(name)</string><key>CFBundleExecutable</key><string>launch</string><key>CFBundleIdentifier</key><string>local.cosmopolitan.\(name.filter { $0.isLetter || $0.isNumber })</string><key>CFBundlePackageType</key><string>APPL</string><key>LSApplicationCategoryType</key><string>public.app-category.games</string>\(icon)</dict></plist>"   // games category: macOS Game Mode can engage for fullscreen play
         try? plist.write(toFile: app + "/Contents/Info.plist", atomically: true, encoding: .utf8)
         let cs = Process(); cs.executableURL = URL(fileURLWithPath: "/usr/bin/codesign"); cs.arguments = ["--force", "--sign", "-", app]
-        try? cs.run(); cs.waitUntilExit()
+        runToEnd(cs)
         guard reveal else { return }
         log += "Shortcut created: \(app) — drag it to the Dock.\n"
         NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: app)])
