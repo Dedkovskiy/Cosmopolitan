@@ -10,7 +10,7 @@ mkdir -p build; for c in Sources/Native/*.cpp; do clang++ -std=c++17 -O2 -c "$c"
 swiftc -parse-as-library -O -g -import-objc-header Sources/Native/cosmo_native.h -F Sparkle -framework Sparkle -framework IOKit -Xlinker -rpath -Xlinker @executable_path/../Frameworks -lc++ -o Cosmopolitan.app/Contents/MacOS/Cosmopolitan $(find Sources -name '*.swift' | sort) build/*.o
 dsymutil Cosmopolitan.app/Contents/MacOS/Cosmopolitan -o Cosmopolitan.app.dSYM 2>/dev/null
 strip -S Cosmopolitan.app/Contents/MacOS/Cosmopolitan 2>/dev/null   # app stays small; symbols live in the dSYM
-PUBKEY=$(cat Sparkle/public-key.txt 2>/dev/null); FEED=${COSMO_FEED_URL:-https://cyber-prinzesse.github.io/Cosmopolitan/appcast.xml}
+PUBKEY=$(cat Sparkle/public-key.txt 2>/dev/null); FEED=${COSMO_FEED_URL:-https://github.com/cyber-prinzesse/Cosmopolitan/releases/latest/download/appcast.xml}
 cp AppIcon.icns Cosmopolitan.app/Contents/Resources/  # built once from icon.png: sips -z … + iconutil -c icns
 cp TERMS.txt THIRD_PARTY_NOTICES.md README.md Cosmopolitan.app/Contents/Resources/   # shown on first run / referenced from the UI
 cat > Cosmopolitan.app/Contents/Info.plist <<P

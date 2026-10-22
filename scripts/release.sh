@@ -11,8 +11,13 @@ ditto -c -k --sequesterRsrc --keepParent Cosmopolitan.app "dist/Cosmopolitan-$CO
 #   atos -o Cosmopolitan.app.dSYM/Contents/Resources/DWARF/Cosmopolitan -arch arm64 -l <load address> <crash addresses>
 mkdir -p dsyms; ditto -c -k --keepParent Cosmopolitan.app.dSYM "dist/Cosmopolitan-$COSMO_VERSION.dSYM.zip"
 cp -R Cosmopolitan.app.dSYM "dsyms/Cosmopolitan-$COSMO_VERSION-$COSMO_BUILD.dSYM"   # local archive of every shipped build's symbols
-# Appcast: generate_appcast signs every app archive in dist/ and writes dist/appcast.xml (older entries are kept). dSYM zips are not update items.
-mkdir -p dist/appcast && cp "dist/Cosmopolitan-$COSMO_VERSION.zip" dist/appcast/ && ./Sparkle/bin/generate_appcast dist/appcast/ && mv dist/appcast/appcast.xml dist/appcast.xml && rm -rf dist/appcast
+# DMG for first-time downloads (Sparkle updates from the zip): the app plus an Applications shortcut, compressed.
+rm -rf dist/dmgroot "dist/Cosmopolitan-$COSMO_VERSION.dmg"; mkdir -p dist/dmgroot && cp -R Cosmopolitan.app dist/dmgroot/ && ln -s /Applications dist/dmgroot/Applications
+hdiutil create -quiet -volname "Cosmopolitan $COSMO_VERSION" -srcfolder dist/dmgroot -ov -format UDZO "dist/Cosmopolitan-$COSMO_VERSION.dmg" && rm -rf dist/dmgroot
+# Appcast: generate_appcast signs the app zip with the EdDSA key and writes the feed; the enclosure URL points at this version's GitHub release,
+# and the feed itself is served from the *latest* release (SUFeedURL in build.sh), so publishing a release is publishing the update.
+REPO=${COSMO_REPO:-cyber-prinzesse/Cosmopolitan}
+mkdir -p dist/appcast && cp "dist/Cosmopolitan-$COSMO_VERSION.zip" dist/appcast/ && ./Sparkle/bin/generate_appcast --download-url-prefix "https://github.com/$REPO/releases/download/v$COSMO_VERSION/" dist/appcast/ && mv dist/appcast/appcast.xml dist/appcast.xml && rm -rf dist/appcast
 echo "Release $COSMO_VERSION ($COSMO_BUILD):"
 echo "  dist/Cosmopolitan-$COSMO_VERSION.zip        the app (Sparkle update item)"
 echo "  dist/Cosmopolitan-$COSMO_VERSION.dSYM.zip   debug symbols (attach to the GitHub release; never inside the app)"
@@ -20,6 +25,10 @@ echo "  dist/appcast.xml                          signed feed; host it at the SU
 # Upload when a GitHub remote exists: the appcast can be served straight from the release assets
 #   (SUFeedURL = https://github.com/<user>/<repo>/releases/latest/download/appcast.xml).
 if command -v gh >/dev/null && git remote get-url origin >/dev/null 2>&1; then
-  gh release create "v$COSMO_VERSION" "dist/Cosmopolitan-$COSMO_VERSION.zip" "dist/Cosmopolitan-$COSMO_VERSION.dSYM.zip" dist/appcast.xml --title "Cosmopolitan $COSMO_VERSION" --notes "Build $COSMO_BUILD" || echo "gh release failed (already exists?)"
+  PREV=$(git describe --tags --abbrev=0 2>/dev/null); NOTES="Build $COSMO_BUILD. Download the .dmg to install; running copies update themselves from this release.
+
+Changes:
+$(git log --format='- %s' ${PREV:+$PREV..}HEAD | head -40)"
+  gh release create "v$COSMO_VERSION" "dist/Cosmopolitan-$COSMO_VERSION.dmg" "dist/Cosmopolitan-$COSMO_VERSION.zip" "dist/Cosmopolitan-$COSMO_VERSION.dSYM.zip" dist/appcast.xml --title "Cosmopolitan $COSMO_VERSION" --notes "$NOTES" || echo "gh release failed (already exists?)"
 else echo "No GitHub remote yet: add one (git remote add origin …) and rerun to upload with gh."; fi
 echo "Note: the app zip contains no D3DMetal; engines/drivers are fetched by the app itself (see dist.sh for the full offline bundle)."
