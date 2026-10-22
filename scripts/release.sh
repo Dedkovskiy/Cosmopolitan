@@ -41,6 +41,6 @@ $(git log --format='- %s' ${PREV:+$PREV..}HEAD | head -40)"
   # gh creates the release as a draft and publishes after the uploads; if that last step fails the release stays a draft and the
   # feed keeps serving the previous version, so publish explicitly (idempotent).
   gh release edit "v$COSMO_VERSION" --draft=false --latest >/dev/null 2>&1 || true
-  gh release view "v$COSMO_VERSION" --json isDraft,isLatest --jq '"published: draft=\(.isDraft) latest=\(.isLatest)"'
+  gh release view "v$COSMO_VERSION" --json isDraft,assets --jq '"published: draft=\(.isDraft), \(.assets | length) assets"'
 else echo "No GitHub remote yet: add one (git remote add origin …) and rerun to upload with gh."; fi
 echo "Note: the app zip contains no D3DMetal; engines/drivers are fetched by the app itself (see dist.sh for the full offline bundle)."
