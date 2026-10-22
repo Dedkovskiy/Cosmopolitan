@@ -16,8 +16,8 @@ struct ContentView: View {
     @State var wirLink = ""
     @State var showImport = false
     @State var rollbackTarget: String? = nil
-    @State var showEpic = false
-    @State var epicCode = ""
+    @State var loginStore: String? = nil   // "epic" / "gog" while the sign-in sheet is up
+    @State var loginCode = ""
     var body: some View {
         HSplitView {
             VStack(alignment: .leading) {
@@ -155,7 +155,7 @@ struct ContentView: View {
         .sheet(isPresented: $showImport) { importBottlesSheet }
         .sheet(isPresented: $showTerms) { termsSheet }
         .sheet(isPresented: $showD3DM) { d3dmetalSheet }
-        .sheet(isPresented: $showEpic) { epicSheet }
+        .sheet(isPresented: Binding(get: { loginStore != nil }, set: { if !$0 { loginStore = nil } })) { storeLoginSheet }
         .sheet(isPresented: Binding(get: { optExe != nil }, set: { if !$0 { optExe = nil } })) { optionsSheet }
         .confirmationDialog("Delete bottle \"\(m.selected)\" and everything in it?", isPresented: $confirmDelete) {
             Button("Delete", role: .destructive) { m.deleteBottle() }

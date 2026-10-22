@@ -80,8 +80,7 @@ extension Model {
         if Store.battlenet.exes.contains(where: { exe.hasSuffix("/" + ($0 as NSString).lastPathComponent) }) { battlenetConfig() }   // keeps the launcher on software rendering
         let (cmd, args) = launchCmd(exe)
         log += powerHints()
-        var need = prepare(exe)
-        need.env.merge(storeEnv(exe)) { $1 }   // store clients' rendering workarounds
+        let need = prepare(exe)
         // A Steam game inherits Steam's environment, so a driver change OR per-game env from Options… needs Steam restarted with it.
         start(need, cmd, args, exe: exe, restartSteam: steamGames[exe] != nil && (need.drivers != nil || !need.env.isEmpty || need.restartSteam) && list.contains("C:\\Program Files (x86)\\Steam\\steam.exe"))
     }

@@ -17,12 +17,15 @@ is what the updater downloads, the `.dSYM.zip` holds the debug symbols for crash
 
 ## Stores
 
-**Stores…** next to the programs grid: *Install GOG Galaxy* and *Install Battle.net* download the official
-installer into the bottle and run it (Battle.net gets Arial and software rendering set up first, the known fixes
-under Wine); their games then appear in the grid. *Epic Games* goes through [Legendary](https://github.com/derrod/legendary)
-(installed with pipx on first use): sign in with the code from Epic's login page, pick a game under *Install Epic
-game*, and it downloads into `C:\Games\Epic` and launches with Epic's auth parameters through this bottle's engine
-and drivers. The Epic launcher itself is not used; it is unreliable under Wine.
+**Stores…** next to the programs grid. *Install Battle.net* downloads the official installer into the bottle and
+runs it (Arial and software rendering are set up first, the known fixes under Wine); its games then appear in the
+grid. *Epic Games* goes through [Legendary](https://github.com/derrod/legendary) (installed with pipx on first use):
+sign in with the code from Epic's login page, pick a game under *Install Epic game*, and it downloads into
+`C:\Games\Epic` and launches with Epic's auth parameters through this bottle's engine and drivers. *GOG* goes through
+[lgogdownloader](https://github.com/Sude-/lgogdownloader) (Homebrew): sign in with the address GOG's login page lands
+on, pick a game under *Install GOG game*, and the DRM-free Windows build is installed straight into `C:\GOG Games`.
+The Epic launcher and GOG Galaxy are not used: the Epic launcher is unreliable under Wine, and GOG Galaxy 2.1's Qt 6
+interface fails its Direct3D 11 probe under every layer available on macOS, so its windows never render.
 
 ## D3DMetal (Direct3D 12) is optional and comes from Apple
 

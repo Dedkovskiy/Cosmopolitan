@@ -1,39 +1,24 @@
 import SwiftUI
 
-// Stores. GOG Galaxy and Battle.net are Windows clients: their official installer is downloaded into the bottle and run like any
-// installer (same launch checks, snapshot, log), and their games show up in the grid through the normal scan. Epic goes through
-// Legendary (open-source, native): the Epic launcher itself is unreliable under Wine, while Legendary signs in, downloads into
-// C:\Games\Epic and launches games with Epic's auth parameters, with Cosmopolitan supplying the engine, drivers and env as always.
+// Stores. Battle.net is a Windows client: its official installer is downloaded into the bottle and run like any installer (same launch
+// checks, snapshot, log), and its games show up in the grid through the normal scan. Epic and GOG go through native open-source
+// clients instead of their Windows launchers: Legendary (Epic) and lgogdownloader (GOG) sign in, list the library and download games
+// into the bottle; Cosmopolitan launches them with the engine, drivers and options it uses for everything else.
+// (GOG Galaxy 2.1 was tried first: its Qt 6 UI needs a render backend and fails the Direct3D 11 probe under every layer available here,
+// D3DMetal, DXMT, DXVK and Wine's own, so its windows never get drawn. GOG games are DRM-free, so nothing is lost without it.)
 var epicGames: [String: (id: String, name: String)] = [:]      // exe path -> Legendary app name / title (installed games)
-var epicOwned: [(id: String, name: String)] = []                 // signed-in library (refreshed in the background by scan)
+var epicOwned: [(id: String, name: String)] = []                 // signed-in Epic library (refreshed in the background by scan)
+var gogOwned: [(id: String, name: String)] = []                  // signed-in GOG library: gamename slug / title
 
 enum Store: String, CaseIterable, Identifiable {
-    case gog = "GOG Galaxy", battlenet = "Battle.net"
+    case battlenet = "Battle.net"
     var id: String { rawValue }
-    var url: String {
-        switch self {
-        case .gog: return "https://webinstallers.gog-statics.com/download/GOG_Galaxy_2.0.exe"
-        case .battlenet: return "https://downloader.battle.net/download/getInstaller?os=win&installer=Battle.net-Setup.exe"
-        }
-    }
-    var file: String { self == .gog ? "GOG_Galaxy_2.0.exe" : "Battle.net-Setup.exe" }
-    var exes: [String] {
-        switch self {
-        case .gog: return ["Program Files (x86)/GOG Galaxy/GalaxyClient.exe"]
-        case .battlenet: return ["Program Files (x86)/Battle.net/Battle.net Launcher.exe", "Program Files (x86)/Battle.net/Battle.net.exe"]
-        }
-    }
+    var url: String { "https://downloader.battle.net/download/getInstaller?os=win&installer=Battle.net-Setup.exe" }
+    var file: String { "Battle.net-Setup.exe" }
+    var exes: [String] { ["Program Files (x86)/Battle.net/Battle.net Launcher.exe", "Program Files (x86)/Battle.net/Battle.net.exe"] }
 }
 
 extension Model {
-    // Per-client environment. GOG Galaxy is Qt 6 + Chromium: under Wine its D3D11 and OpenGL probes fail, Qt then has no RHI and the
-    // login window (a QQuickWidget hosting a web view) never gets drawn. Software rendering for both makes it appear.
-    func storeEnv(_ exe: String) -> [String: String] {
-        let n = (exe as NSString).lastPathComponent.lowercased()
-        if n.hasPrefix("galaxyclient") { return ["QT_QUICK_BACKEND": "software", "QSG_RHI_BACKEND": "software", "QT_OPENGL": "software",
-                                                 "QTWEBENGINE_CHROMIUM_FLAGS": "--disable-gpu --disable-gpu-compositing --no-sandbox"] }
-        return [:]
-    }
     func storeExe(_ s: Store) -> String? { s.exes.map { "\(bottlesDir)/\(selected)/drive_c/\($0)" }.first { FileManager.default.fileExists(atPath: $0) } }
 
     // Download the official installer into <bottle>/installers and run it. Battle.net also gets Arial (its UI shows boxes without it)
@@ -68,11 +53,12 @@ extension Model {
         if let d = try? JSONSerialization.data(withJSONObject: cfg, options: [.prettyPrinted, .sortedKeys]) { try? d.write(to: URL(fileURLWithPath: p)) }
     }
 
-    // Extra places the plain scan does not look: GOG's games folders (one level deeper) and Legendary's installed Epic games.
+    // Extra places the plain scan does not look: GOG game folders (one level deeper) and Legendary's installed Epic games.
+    // Also refreshes the owned-library lists for the Install menus in the background (network calls, off the main thread).
     func storeGames() -> [String] {
         let c = "\(bottlesDir)/\(selected)/drive_c", fm = FileManager.default
         var out: [String] = []
-        for root in ["Program Files (x86)/GOG Galaxy/Games", "GOG Games", "Program Files (x86)/GOG Games"] {
+        for root in ["GOG Games", "Program Files (x86)/GOG Galaxy/Games", "Program Files (x86)/GOG Games"] {
             for game in (try? fm.contentsOfDirectory(atPath: "\(c)/\(root)")) ?? [] where !game.hasPrefix(".") {
                 for f in (try? fm.contentsOfDirectory(atPath: "\(c)/\(root)/\(game)")) ?? [] where f.lowercased().hasSuffix(".exe") && !skipExes.contains(where: { f.lowercased().contains($0) }) && !f.lowercased().hasPrefix("unins") {
                     out.append("\(c)/\(root)/\(game)/\(f)")
@@ -87,13 +73,19 @@ extension Model {
                 let p = "\(path)/\(exe.replacingOccurrences(of: "\\", with: "/"))"
                 if fm.fileExists(atPath: p) { epicGames[p] = (id, g["title"] as? String ?? id); out.append(p) }
             }
-            // Owned library for the Install menu: network call, so off the main thread; the menu reads the global when it opens.
             if epicSignedIn() { Task.detached { let s = shell("'\(l)' list --json 2>/dev/null"); if let d = s.data(using: .utf8), let arr = (try? JSONSerialization.jsonObject(with: d)) as? [[String: Any]] {
                 epicOwned = arr.compactMap { g in (g["app_name"] as? String).map { ($0, g["app_title"] as? String ?? $0) } }.sorted { $0.1 < $1.1 } } } }
         }
+        if let g = lgog, gogSignedIn(), gogOwned.isEmpty { Task.detached {
+            let s = shell("'\(g)' --list json --platform w 2>/dev/null")
+            guard let d = s.data(using: .utf8), let obj = try? JSONSerialization.jsonObject(with: d) else { return }
+            let arr = (obj as? [[String: Any]]) ?? ((obj as? [String: Any])?["games"] as? [[String: Any]]) ?? []
+            gogOwned = arr.compactMap { g in (g["gamename"] as? String).map { ($0, g["title"] as? String ?? $0) } }.sorted { $0.1 < $1.1 }
+        } }
         return out
     }
 
+    // ---- Epic (Legendary) ----
     // Legendary is not in Homebrew; pipx puts it in ~/.local/bin.
     var legendary: String? { ["/opt/homebrew/bin/legendary", NSHomeDirectory() + "/.local/bin/legendary", "/usr/local/bin/legendary"].first { FileManager.default.fileExists(atPath: $0) } }
     func epicSignedIn() -> Bool { legendary != nil && FileManager.default.fileExists(atPath: NSHomeDirectory() + "/.config/legendary/user.json") }
@@ -124,5 +116,28 @@ extension Model {
         let args = ["launch", app, "--wine", loaderNamed(exe), "--wine-prefix", env["WINEPREFIX"]!] + (epicOnline() ? [] : ["--offline"]) + need.args + extraArgs(exe)
         start(need, "", [], exe: exe, runner: { self.exec(l, args, env: env, block: false, exe: exe) })
     }
-    func epicOnline() -> Bool { shell("curl -s -m 3 -o /dev/null -w '%{http_code}' https://account-public-service-prod.ol.epicgames.com/ 2>/dev/null").hasPrefix("4") || shell("curl -s -m 3 -o /dev/null -w '%{http_code}' https://www.epicgames.com/ 2>/dev/null").hasPrefix("2") }
+    func epicOnline() -> Bool { shell("curl -s -m 3 -o /dev/null -w '%{http_code}' https://www.epicgames.com/ 2>/dev/null").hasPrefix("2") }
+
+    // ---- GOG (lgogdownloader) ----
+    var lgog: String? { ["/opt/homebrew/bin/lgogdownloader", "/usr/local/bin/lgogdownloader"].first { FileManager.default.fileExists(atPath: $0) } }
+    func gogSignedIn() -> Bool {
+        lgog != nil && ((try? FileManager.default.attributesOfItem(atPath: NSHomeDirectory() + "/.config/lgogdownloader/galaxy_tokens.json"))?[.size] as? Int ?? 0) > 20
+    }
+    func installLgog() { exec("/bin/sh", ["-c", "brew install lgogdownloader"], env: ["PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"]) { self.log += self.lgog == nil ? "lgogdownloader did not install; see the log above.\n" : "lgogdownloader installed. Stores… › Sign in to GOG.\n" } }
+    // GOG's own login page (what lgogdownloader --browser-login prints); after login the browser lands on embed.gog.com/on_login_success?…code=…
+    static let gogLoginURL = URL(string: "https://auth.gog.com/auth?client_id=46899977096215655&redirect_uri=https%3A%2F%2Fembed.gog.com%2Fon_login_success%3Forigin%3Dclient&response_type=code&layout=default&brand=gog")!
+    func gogSignIn(redirectURL: String) {
+        guard let g = lgog else { return }
+        let u = redirectURL.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "'", with: "")
+        exec("/bin/sh", ["-c", "printf '%s\\n' '\(u)' | '\(g)' --browser-login"]) { gogOwned = []; self.scan(); if self.gogSignedIn() { self.log += "Signed in to GOG. Stores… › Install GOG game (the library takes a moment to load).\n" } }
+    }
+    func gogSignOut() { gogOwned = []; for f in ["galaxy_tokens.json", "cookies.txt"] { try? FileManager.default.removeItem(atPath: NSHomeDirectory() + "/.config/lgogdownloader/" + f) }; scan() }
+    func gogInstalled() -> Set<String> { Set((try? FileManager.default.contentsOfDirectory(atPath: "\(bottlesDir)/\(selected)/drive_c/GOG Games")) ?? []) }
+    // Installs the Windows build straight from GOG's content system into C:\GOG Games\<gamename> (DRM-free, no installer to click through).
+    func installGog(_ gamename: String) {
+        guard let g = lgog else { return }
+        snapshot("before installing GOG game \(gamename)")
+        let dir = "\(bottlesDir)/\(selected)/drive_c/GOG Games"; try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        exec(g, ["--galaxy-install", gamename, "--galaxy-platform", "w", "--directory", dir, "--no-color", "--no-unicode", "--no-window-progress"], block: false) { self.scan() }
+    }
 }
