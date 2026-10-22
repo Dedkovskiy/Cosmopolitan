@@ -26,11 +26,9 @@ func launchEnv(_ bottle: String, drivers: [String]? = nil) -> [String: String] {
         e["D3DM_MAX_FPS"] = "60"; e["DXMT_CONFIG"] = "d3d11.preferredMaxFrameRate=60;d3d11.metalSpatialUpscaleFactor=1.5"
     }
     // Upstream DXVK can't run on Metal; the Sikarugir DXVK builds here can.
-    // Upstream Wine already searches WINEDLLPATH entries before its own lib dir, so the same driver folders work with any Wine build —
-    // the WINEDLLPATH_<SLOT> variables below are the Sikarugir engine's names for the same thing.
-    let chosen = drivers ?? driverList(e, bottle: bottle)
-    e["WINEDLLPATH"] = chosen.map { "\(driversDir)/\($0)/wine" }.joined(separator: ":")
-    for d in chosen {
+    // Only the engine's per-slot variables, never plain WINEDLLPATH: tried 2026-10-22, it made DXMT's dxgi/d3d11 the builtin for every
+    // process including steamwebhelper (which must stay on Wine's own D3D) → "Steamwebhelper is not responding".
+    for d in drivers ?? driverList(e, bottle: bottle) {
         guard let s = driverSlot[d] else { continue }
         e["WINEDLLPATH_" + s] = "\(driversDir)/\(d)/wine"
         // libd3dshared dlopen()s this value as-is; the dylibs are reached through the symlinked x86_64-unix path, so @rpath can't find the framework on its own.

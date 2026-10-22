@@ -1,4 +1,4 @@
-From 1d1faf097d7c71b89f7de4857bc51601e271a357 Mon Sep 17 00:00:00 2001
+From 4bc623050f8b9d30aff71d1988e70f99f0107307 Mon Sep 17 00:00:00 2001
 From: Andrii Rozhanskyi <andrey.rozhanskiy@icloud.com>
 Date: Thu, 22 Oct 2026 06:26:18 +0200
 Subject: [PATCH 3/3] winemac.drv: Name the application menu after the Windows
@@ -17,8 +17,8 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
 ---
  dlls/winemac.drv/cocoa_app.m    |  4 ++++
  dlls/winemac.drv/macdrv_cocoa.h |  1 +
- dlls/winemac.drv/macdrv_main.c  | 16 ++++++++++++++++
- 3 files changed, 21 insertions(+)
+ dlls/winemac.drv/macdrv_main.c  | 17 +++++++++++++++++
+ 3 files changed, 22 insertions(+)
 
 diff --git a/dlls/winemac.drv/cocoa_app.m b/dlls/winemac.drv/cocoa_app.m
 index f3f75e1..1df6285 100644
@@ -48,7 +48,7 @@ index e98edbe..e6cac05 100644
  static inline CGRect cgrect_mac_from_win(CGRect rect)
  {
 diff --git a/dlls/winemac.drv/macdrv_main.c b/dlls/winemac.drv/macdrv_main.c
-index fa45642..b32b067 100644
+index fa45642..2e9f287 100644
 --- a/dlls/winemac.drv/macdrv_main.c
 +++ b/dlls/winemac.drv/macdrv_main.c
 @@ -53,6 +53,7 @@ bool use_precise_scrolling = true;
@@ -59,7 +59,7 @@ index fa45642..b32b067 100644
  
  pthread_key_t macdrv_thread_data_key = 0;
  UINT64 app_icon_callback = 0;
-@@ -371,6 +372,21 @@ static void setup_options(void)
+@@ -371,6 +372,22 @@ static void setup_options(void)
      if (!get_config_key(hkey, appkey, "EnableAppNap", buffer, sizeof(buffer)))
          enable_app_nap = IS_OPTION_TRUE(buffer[0]);
  
@@ -68,8 +68,9 @@ index fa45642..b32b067 100644
 +       (The Dock label comes from the loader's file name; there is no API to change it.) */
 +    if (get_config_key(hkey, appkey, "ProcessName", buffer, sizeof(buffer)))
 +    {
++        static const WCHAR exeW[] = {'.','e','x','e',0};
 +        lstrcpyW(buffer, appname);
-+        if ((len = lstrlenW(buffer)) > 4 && !wcsicmp(buffer + len - 4, L".exe")) buffer[len - 4] = 0;
++        if ((len = lstrlenW(buffer)) > 4 && !wcsicmp(buffer + len - 4, exeW)) buffer[len - 4] = 0;
 +    }
 +    if (buffer[0])
 +    {

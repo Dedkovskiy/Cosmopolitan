@@ -19,9 +19,12 @@ Not patched because upstream already has it: per-device hidraw selection
 shipped `winebus.sys` for the strings). Cosmopolitan writes both the global `DisableHidraw` (what 10.0
 reads) and the per-device key for Sony pads (what 11.x reads).
 
-Not a Wine change: the driver folders are now also exported through plain `WINEDLLPATH`, which upstream
-Wine searches before its own `lib/wine`, so DXMT/D9VK/D3DMetal work with any Wine build, not only the
-Sikarugir engine's `WINEDLLPATH_<SLOT>` variables.
+Tried and reverted: exporting the driver folders through plain `WINEDLLPATH` (so they would work with any
+Wine build, not only the Sikarugir engine's `WINEDLLPATH_<SLOT>` variables). Plain `WINEDLLPATH` makes
+DXMT's dxgi/d3d11 the builtin for *every* process, including `steamwebhelper.exe`, which must stay on
+Wine's own D3D: Steam then shows "Steamwebhelper is not responding". The slot variables are applied
+selectively by the engine; a generic Wine would need per-process `DllOverrides` pointing at the driver
+copies instead.
 
 ## Trying a patch
 ```sh
