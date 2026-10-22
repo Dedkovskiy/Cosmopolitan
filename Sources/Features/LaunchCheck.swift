@@ -40,7 +40,8 @@ extension Model {
             let msvc = era.linker != 2   // GNU ld stamps subsystem 4/5 on new programs; only trust the number from Microsoft/Borland linkers
             // Installer stubs (NSIS/Inno: SteamSetup.exe, …) carry old-looking headers but install modern software that refuses Windows 98.
             let installer = exe.contains("/installers/") || ["setup", "install"].contains(where: { name.lowercased().contains($0) })
-            if installer { break }
+            // .NET programs: csc and mcs stamp subsystem 4.0 on every build, so the header says nothing about age (.NET 4 doesn't run on 9x at all).
+            if installer || imps.contains("mscoree.dll") { break }
             // 64-bit builds postdate Windows 9x, so only 32-bit programs can be 9x-era.
             if is32, (era.subsystem > 0 && era.subsystem <= 4 && msvc) || imps.contains("ddraw.dll") { desktop = true; winver = "win98"; parts.append("Windows 9x-era program — 1280x960 virtual desktop, Retina off") }
             else if era.subsystem == 5 && (6...9).contains(era.linker) { winver = "winxp"; parts.append("XP-era program") }   // VC6–VC2008 builds
