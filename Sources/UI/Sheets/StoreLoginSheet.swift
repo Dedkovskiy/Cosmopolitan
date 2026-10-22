@@ -1,24 +1,60 @@
 import SwiftUI
+import WebKit
+
+// Store sign-in inside the app: the store's own login page runs in a web view with a fresh, private session (so a stale browser
+// login cannot skip Epic's policy prompts). The moment the page that carries the code appears, it is read and handed to
+// Legendary / lgogdownloader; the user never copies anything. A paste field stays as fallback.
+struct StoreLoginWebView: NSViewRepresentable {
+    let url: URL
+    let onCode: (String) -> Void          // Epic: authorizationCode; GOG: the full redirect URL (what lgogdownloader asks for)
+    let isEpic: Bool
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+    func makeNSView(context: Context) -> WKWebView {
+        let cfg = WKWebViewConfiguration(); cfg.websiteDataStore = .nonPersistent()
+        let v = WKWebView(frame: .zero, configuration: cfg); v.navigationDelegate = context.coordinator
+        v.customUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
+        v.load(URLRequest(url: url)); return v
+    }
+    func updateNSView(_ v: WKWebView, context: Context) {}
+    final class Coordinator: NSObject, WKNavigationDelegate {
+        let p: StoreLoginWebView; var done = false
+        init(_ p: StoreLoginWebView) { self.p = p }
+        func webView(_ w: WKWebView, didFinish nav: WKNavigation!) {
+            guard !done, let u = w.url else { return }
+            if p.isEpic, u.path.hasPrefix("/id/api/redirect") {
+                w.evaluateJavaScript("document.body.innerText") { r, _ in
+                    guard let s = r as? String, let d = s.data(using: .utf8), let j = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any] else { return }
+                    if let c = j["authorizationCode"] as? String, !c.isEmpty { self.done = true; self.p.onCode(c) }
+                }
+            } else if !p.isEpic, u.host?.hasSuffix("gog.com") == true, u.path.contains("on_login_success"), u.absoluteString.contains("code=") {
+                done = true; p.onCode(u.absoluteString)
+            }
+        }
+    }
+}
 
 extension ContentView {
-    // Browser sign-in for the native store clients: the store's own login page opens in Safari; what the page shows afterwards
-    // (Epic: an authorizationCode; GOG: the address of the page you land on) is pasted here and handed to Legendary / lgogdownloader.
     @ViewBuilder var storeLoginSheet: some View {
         let epic = loginStore == "epic"
-        VStack(alignment: .leading, spacing: 10) {
-            Text(epic ? "Sign in to Epic Games" : "Sign in to GOG").font(.headline)
-            Text(epic ? "1. Open the sign-in page and log in with your Epic account.\n2. The page then shows a line like \"authorizationCode\": \"abc123…\". Copy that code.\n3. Paste it below. Legendary keeps the session in ~/.config/legendary; nothing else is stored.\nIf the page shows errorCode … corrective_action_required (PRIVACY_POLICY_ACCEPTANCE), Epic wants you to accept its updated policy first: open epicgames.com/account, accept, then open the sign-in page again."
-                      : "1. Open the sign-in page and log in with your GOG account.\n2. You land on a page that looks broken or empty; that is expected. Copy its full address from the address bar (it starts with https://embed.gog.com/on_login_success).\n3. Paste it below. lgogdownloader keeps the session in ~/.config/lgogdownloader; nothing else is stored.")
-                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            Button("Open sign-in page") { NSWorkspace.shared.open(epic ? Model.epicLoginURL : Model.gogLoginURL) }
-            TextField(epic ? "authorizationCode" : "https://embed.gog.com/on_login_success?origin=client&code=…", text: $loginCode).textFieldStyle(.roundedBorder)
+        VStack(alignment: .leading, spacing: 8) {
             HStack {
+                Text(epic ? "Sign in to Epic Games" : "Sign in to GOG").font(.headline)
                 Spacer()
                 Button("Cancel") { loginStore = nil }.keyboardShortcut(.cancelAction)
-                Button("Sign in") { if epic { m.epicSignIn(code: loginCode) } else { m.gogSignIn(redirectURL: loginCode) }; loginCode = ""; loginStore = nil }
-                    .keyboardShortcut(.defaultAction).disabled(epic ? loginCode.trimmingCharacters(in: .whitespaces).count < 8 : !loginCode.contains("code="))
             }
-        }.padding().frame(width: 480)
+            Text(epic ? "Log in below. If Epic asks you to accept an updated policy, accept it; the sign-in completes by itself afterwards."
+                      : "Log in below. The sign-in completes by itself when GOG's login finishes (the page it lands on looks empty; that is fine).")
+                .font(.caption).foregroundStyle(.secondary)
+            StoreLoginWebView(url: epic ? Model.epicLoginURL : Model.gogLoginURL, onCode: { code in
+                if epic { m.epicSignIn(code: code) } else { m.gogSignIn(redirectURL: code) }
+                loginStore = nil
+            }, isEpic: epic).frame(width: 720, height: 620).clipShape(RoundedRectangle(cornerRadius: 8))
+            HStack {
+                TextField(epic ? "…or paste the authorizationCode here" : "…or paste the https://embed.gog.com/on_login_success?… address here", text: $loginCode).textFieldStyle(.roundedBorder)
+                Button("Use code") { if epic { m.epicSignIn(code: loginCode) } else { m.gogSignIn(redirectURL: loginCode) }; loginCode = ""; loginStore = nil }
+                    .disabled(epic ? loginCode.trimmingCharacters(in: .whitespaces).count < 8 : !loginCode.contains("code="))
+            }
+        }.padding()
     }
 
     @ViewBuilder var storesMenu: some View {
