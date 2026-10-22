@@ -1,6 +1,8 @@
 # Design: compatibility gate, repair, chip matrix, conflict and crash tests
 
-Status: **draft for review**. Nothing here is implemented. It builds on `docs/phase0-report.md`.
+Status: **decisions of 2026-10-23 applied** (D1–D4 below). Parts are now implemented and tested: the safety fixes, pinned components and
+runtimes, the D3DMetal version guard, the honest battery cap, and the C++ decision engine (not yet wired into launches). It builds on
+`docs/phase0-report.md`; the component list with sources is `docs/components.md`.
 Everything ships behind a feature flag: UserDefaults `compatGate` (default off) and `COSMO_COMPAT_GATE=1` for the CLI and the test build. With the flag off, today's behaviour stays.
 
 Conventions: hardware and OS claims carry **[V n]** (verified, numbered source at the end) or **[U]** (unverified).
@@ -22,9 +24,9 @@ Conventions: hardware and OS claims carry **[V n]** (verified, numbered source a
 
 Decisions for you:
 - **D1, interception of launches from Steam's own window** (§3.1): **decided 2026-10-23: pre-configure and watch only; no launch-option wrapper yet.**
-- **D2, decision engine language**: C++ now (recommended) or Swift first, migrated in Phase 5.
-- **D3, Wine Mono and redistributables**: install from WineHQ / Microsoft official downloads with pinned hashes (recommended), not from the engine copy.
-- **D4, provenance**: the Sikarugir-sourced stack (Phase 0 §11) stays until upstream replacements pass the suite, or gets replaced now.
+- **D2, decision engine language**: **decided: C++ from the start**, with a boundary of plain C structs and enums (not JSON). Implemented as `cosmo_decide()` in `Sources/Native/decide.cpp`; `tests/native/decide_test.cpp` covers every row under ASan + UBSan.
+- **D3, Wine Mono and redistributables**: **decided and implemented**: Wine Mono 9.4.0 from WineHQ, Visual C++ v14 14.51.36247.0 (x86/x64) and DirectX June 2010 from Microsoft, pinned by version and SHA-256, downloaded at setup, nothing bundled. The .NET Framework 4.8 installer is not used: Wine Mono is the .NET runtime here.
+- **D4, provenance**: **decided**: the Sikarugir engine and drivers stay, pinned (engine tarball SHA-256, template parts by tree hash), until upstream replacements pass the suite. The weekly Sikarugir template download is gone; D3DMetal comes only from your own GPTK install.
 
 ## 1. What "driver" means here, and backend coverage
 
@@ -136,6 +138,7 @@ Each backend version ships a small requirement manifest. The engine checks it ag
 - That matches the measurement: DXVK-Sikarugir v3.1.1 logs "Skipping: Device does not support required feature 'shaderCullDistance'".
 - Open question: DXVK checks `geometryShader` first [V B16], so the Sikarugir MoltenVK must report it [U]. `cosmo-probe vulkan` will show the real feature set.
 - vkd3d-proton refuses devices without robustness2, `nullDescriptor` and transform feedback [V B23], none of which stock MoltenVK has [V B19, B24]. The manifest makes it ineligible here, with that reason.
+- **Measured on this Mac's own Vulkan driver** (the engine's `libvulkan.1.dylib` + `libMVK.dylib`, MoltenVK 1.4.1 on the Apple M2 Max, API 1.3.334; probe `tests/native/vkprobe.c` built against Khronos Vulkan-Headers 1.4.309): `geometryShader=0 shaderCullDistance=0 robustBufferAccess2=0 nullDescriptor=0 transformFeedback=0`, `VK_EXT_transform_feedback` absent. So DXVK ≥ 2.7 and vkd3d-proton both fail their device checks here, as sourced above.
 - When a future MoltenVK reports the feature, DXVK 3 becomes eligible with no code change.
 - `driverUsable()`'s regex (`Drivers.swift:13`) is deleted once this passes the regression test in §6.
 
@@ -274,7 +277,13 @@ Findings:
 - Lowering the display refresh rate works only on some displays [V B29], only if D3DMetal presents with vsync (undocumented [U]), and it's a system setting we don't change.
 - An in-process limiter would mean hooking D3DMetal's DXGI Present. That modifies how Apple's component runs, so it's not proposed.
 
-Rule: the cap is a capability of the active backend (§3.3 feature flags).
+Apple's Read Me text, quoted exactly:
+- Frame cap, 4.0 beta 2 Read Me line 52: "D3DM_MAX_FPS - Unset by default. Setting this environment variable caps the application’s frame rate to the specified frames per second." [V R4]
+- Metal 4 backend, same file line 50: "D3DM_MTL4 - On macOS 27 or later, the Metal 4 backend for D3DMetal’s DirectX 12 translation layer is enabled by default (1, ON). Setting this environment variable to 0 (OFF) disables the Metal 4 backend and uses the Metal 3 backend." [V R4]
+- 16 GB, line 10 of both Read Mes: "Translated games require more resources, so developer-focused Macs with 16GB of RAM or more are recommended." [V R3, R4]
+- The 3.0 Read Me contains neither D3DM_MAX_FPS nor D3DM_MTL4 (0 matches). [V R3]
+
+Rule (implemented): the cap is a capability of the active backend (§3.3 feature flags).
 - With it: set it.
 - Without it: the launch note and tile say "Battery 60 fps cap: not available for this game (D3DMetal 3.0 has no frame limiter). Use the game's own frame limit or vsync."
 
@@ -296,7 +305,7 @@ Source: Apple newsroom, support tech specs and Metal docs, collected by the hard
 | M5 Pro / Max | gen 3 [V 26] | gen 2 [V 26] | hardware [V 26] | 24 / 36 GB [V 27] | Apple10 | — |
 | M5 Ultra | gen 3 [V 28] | gen 2 [V 28] | hardware [V 28] | 96 GB [V 29] | Apple10 | — |
 | M6 | yes, generation not stated [V 28] | "updated" [V 28] | not stated | 16 GB [V 31] | not in Apple's May 2026 tables [U] | — |
-| A18 Pro (MacBook Neo) | yes [V 32] | not stated | not stated | 8 GB only [V 32] | Apple9 [V 1] | yes [V 33] |
+| **MacBook Neo**: Apple A18 Pro, an iPhone-class chip, not M-series | yes [V 32] | not stated | not stated | 8 GB only, no other option [V 32] | Apple9 [V 1] | yes, no fan [V 33] |
 
 Neural Accelerators in GPU cores: M5 family [V 24, 26, 30] and M6 [V 28]; earlier chips not listed (inference [U]).
 
@@ -308,6 +317,7 @@ Neural Accelerators in GPU cores: M5 family [V 24, 26, 30] and M6 [V 28]; earlie
   - Apple's GPTK Read Me ties advertising AVX to macOS 15: "`ROSETTA_ADVERTISE_AVX` … On macOS 15 Sequoia and later … causes the CPU instruction translation layer to publish cpuid information … This setting does not modify the availability of the instruction set" [V R3]. So the variable Cosmopolitan sets (`LaunchCheck.swift:88`) is documented, and it only changes what games detect.
   - The runtime AVX2 probe still decides, because it also catches a missing or broken Rosetta.
 - **Rosetta horizon**: Rosetta stays general-purpose "through macOS 27"; afterwards Apple keeps "a subset … aimed at supporting older unmaintained gaming titles, that rely on Intel-based frameworks" [V 39, 43].
+  - Rosetta stays fully available on macOS 26 and 27. What changes at the macOS 27.0 upgrade is only whether it is installed: "If Rosetta was previously installed, it is not automatically restored after upgrading to macOS 27.0." (macOS 27 release notes, Deprecations, 163213094) [V 45]. A Mac that had Rosetta before the upgrade comes out without it, so Wine can't start until it is installed again. The host probe's Rosetta check (§3.3) and decision row 2 catch exactly this.
   - Whether Wine-hosted games and their non-game helper processes qualify is unknown. Apple staff only said macOS x86 games keep working [V 46].
   - macOS 27 betas have `game-test-tool` to try the macOS 28 behaviour [V 45].
   - The architecture layer stays isolated (one place starts x86 processes), and the UI warns on macOS 28+ without promising support.
@@ -380,7 +390,9 @@ Each scenario is a unit test (mock `HostProfile` + fake inventory + DB fixture) 
 | 15 | `cosmo-probe` gets `SIGSEGV` / sleeps forever (test env hook) | app survives, times out after 30 s, "probe failed", blocks or uses last-known-good | no guess in the decision; exit 5 |
 | 16 | whole suite with `-sanitize=address,undefined` (Swift and C++), then `-sanitize=thread` | — | zero reports |
 | 17 | regressions: (a) concurrent background checks during the licence hash; (b) DXVK 3 never chosen while MoltenVK lacks `shaderCullDistance`; (c) non-store programs get a correct light; (d) 64-bit DirectDraw never win98; (e) .NET never win98; plus Phase 0 N1 (bottle creation doesn't bake drivers), N2 (.NET runs in a new bottle), N3 (stale per-exe keys removed), N5 (Repair only touches its own prefix) | as fixed | each test fails on the old code and passes on the new |
-| 18 | order: cnc-ddraw 32-bit → DirectDraw 64-bit, plus full random/reverse | identical results to isolated runs | result lines equal; issue C gets its own test once the root cause is confirmed |
+| 18 | order: cnc-ddraw 32-bit → DirectDraw 64-bit, plus full random/reverse | identical results to isolated runs | result lines equal. `tests/stress/run.sh` now gives every test a fresh prefix clone (`ORDER=reverse|random`) |
+
+**Issue C, root cause (confirmed 2026-10-23 with Steam session restarts):** in a fresh Steam session the 64-bit DirectDraw test passes alone. After one 32-bit cnc-ddraw run it fails, and the whole session reports an 800x600 screen (`GetSystemMetrics` and `EnumDisplaySettings` both). A cnc-ddraw run leaves the bottle's display mode at 800x600, and while Steam keeps the bottle's wineserver alive, every later program sees it. `ChangeDisplaySettingsEx(NULL)` can't restore it (`-2`), cnc-ddraw's `windowed=true` doesn't prevent it, and restarting Steam's session clears it. Without Steam the server exits between programs, which is why throwaway prefixes never showed it. Still open: which call sets the mode (needs Wine `+system` traces) and the fix (candidates: run cnc-ddraw games so the mode resets, or restart the bottle's session after a cnc-ddraw game exits).
 
 ## 7. Swift ↔ C++ boundary
 
@@ -389,7 +401,7 @@ Each scenario is a unit test (mock `HostProfile` + fake inventory + DB fixture) 
 **Rules for every boundary function (new and migrated):**
 - `extern "C" ... noexcept`, with a `try { … } catch (...) { return COSMO_E_INTERNAL; }` wrapper generated by one macro. Swift cannot catch C++ exceptions, and they terminate the program [V 69].
 - Return a `cosmo_status` (0 = ok, typed codes) plus output through caller-owned buffers or a handle. Handles are opaque integers into a C++ registry of RAII objects, freed with `cosmo_release(handle)`. No raw owning pointers cross.
-- The engine call is `cosmo_decide(const char *request_json, char *out, size_t cap, size_t *needed)`: a value in, a value out, no shared state.
+- The engine call is `cosmo_decision cosmo_decide(const cosmo_decision_input *in)`: plain C structs and enums in and out (D2), no shared state, no I/O.
 - Thread safety documented per function. Rule: no mutable globals. Every function can be called from any Swift task concurrently.
 
 **Helper process vs XPC for untrusted parsing:**
