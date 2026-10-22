@@ -33,7 +33,7 @@ echo "  dist/appcast.xml                          signed feed; host it at the SU
 # Upload when a GitHub remote exists: the appcast can be served straight from the release assets
 #   (SUFeedURL = https://github.com/<user>/<repo>/releases/latest/download/appcast.xml).
 if command -v gh >/dev/null && git remote get-url origin >/dev/null 2>&1; then
-  PREV=$(git describe --tags --abbrev=0 2>/dev/null); NOTES="Build $COSMO_BUILD. Download the .dmg to install; running copies update themselves from this release.
+  PREV=$(git describe --tags --abbrev=0 2>/dev/null || true); NOTES="Build $COSMO_BUILD. Download the .dmg to install; running copies update themselves from this release.
 
 Changes:
 $(git log --format='- %s' ${PREV:+$PREV..}HEAD | head -40)"
