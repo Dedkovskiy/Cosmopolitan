@@ -11,15 +11,59 @@ var epicOwned: [(id: String, name: String)] = []                 // signed-in Ep
 var gogOwned: [(id: String, name: String)] = []                  // signed-in GOG library: gamename slug / title
 
 enum Store: String, CaseIterable, Identifiable {
-    case battlenet = "Battle.net"
+    case battlenet = "Battle.net", epic = "Epic Games Launcher"
     var id: String { rawValue }
-    var url: String { "https://downloader.battle.net/download/getInstaller?os=win&installer=Battle.net-Setup.exe" }
-    var file: String { "Battle.net-Setup.exe" }
-    var exes: [String] { ["Program Files (x86)/Battle.net/Battle.net Launcher.exe", "Program Files (x86)/Battle.net/Battle.net.exe"] }
+    var url: String {
+        switch self {
+        case .battlenet: return "https://downloader.battle.net/download/getInstaller?os=win&installer=Battle.net-Setup.exe"
+        case .epic: return "https://launcher-public-service-prod06.ol.epicgames.com/launcher/api/installer/download/EpicGamesLauncherInstaller.msi"
+        }
+    }
+    var file: String { self == .battlenet ? "Battle.net-Setup.exe" : "EpicGamesLauncherInstaller.msi" }
+    var exes: [String] {
+        switch self {
+        case .battlenet: return ["Program Files (x86)/Battle.net/Battle.net Launcher.exe", "Program Files (x86)/Battle.net/Battle.net.exe"]
+        case .epic: return ["Program Files/Epic Games/Launcher/Portal/Binaries/Win64/EpicGamesLauncher.exe", "Program Files (x86)/Epic Games/Launcher/Portal/Binaries/Win64/EpicGamesLauncher.exe"]
+        }
+    }
+    var args: [String] { self == .epic ? ["-SkipBuildPatchPrereq"] : [] }   // the launcher otherwise insists on installing redistributables it cannot under Wine
 }
 
 extension Model {
+    // Store clients get a fixed driver set regardless of the bottle's Direct3D 12 marker: GOG Galaxy's Qt 6 UI passes its Direct3D 11
+    // probe on DXMT but not on D3DMetal (then it falls back to software drawing and parts of the UI stay blank).
+    func storeDrivers(_ exe: String) -> [String]? {
+        let n = (exe as NSString).lastPathComponent.lowercased()
+        if n.hasPrefix("galaxyclient") || n.hasPrefix("epicgameslauncher") { return ["dxmt", "d9vk", "cnc_ddraw"].filter { installedDrivers().contains($0) } }
+        return nil
+    }
     func storeExe(_ s: Store) -> String? { s.exes.map { "\(bottlesDir)/\(selected)/drive_c/\($0)" }.first { FileManager.default.fileExists(atPath: $0) } }
+
+    // Epic's launcher self-updates on every start: it stages the new build under ProgramData\Epic\EpicGamesLauncher\Data\Update\Install,
+    // reports success, but under Wine the final move into Program Files never happens, so it restarts forever ("Requiring 1223 files"
+    // each time). Finishing the move ourselves before each launch, and giving it the installed manifest it looks for, ends the loop.
+    func finishEpicLauncherUpdate(_ exe: String) {
+        let c = "\(bottlesDir)/\(selected)/drive_c", data = "\(c)/ProgramData/Epic/EpicGamesLauncher/Data", fm = FileManager.default
+        let dst = ((exe as NSString).deletingLastPathComponent as NSString).deletingLastPathComponent   // …/Launcher/Portal/Binaries
+        let launcher = ((dst as NSString).deletingLastPathComponent as NSString).deletingLastPathComponent   // …/Launcher
+        var moved = 0
+        for top in ["Engine", "Portal"] {
+            let src = "\(data)/Update/Install/\(top)"
+            guard let en = fm.enumerator(atPath: src) else { continue }
+            for case let rel as String in en {
+                var isDir: ObjCBool = false
+                guard fm.fileExists(atPath: "\(src)/\(rel)", isDirectory: &isDir) else { continue }
+                let to = "\(launcher)/\(top)/\(rel)"
+                if isDir.boolValue { try? fm.createDirectory(atPath: to, withIntermediateDirectories: true); continue }
+                try? fm.removeItem(atPath: to)
+                if (try? fm.copyItem(atPath: "\(src)/\(rel)", toPath: to)) != nil { moved += 1 }
+            }
+        }
+        let installed = "\(data)/Launcher.manifest", update = "\(data)/LauncherUpdate.manifest"
+        if !fm.fileExists(atPath: installed), fm.fileExists(atPath: update) { try? fm.copyItem(atPath: update, toPath: installed) }
+        else if moved > 0, fm.fileExists(atPath: update) { try? fm.removeItem(atPath: installed); try? fm.copyItem(atPath: update, toPath: installed) }
+        if moved > 0 { log += "Epic Games Launcher: finished its pending update (\(moved) files moved into place).\n" }
+    }
 
     // Download the official installer into <bottle>/installers and run it. Battle.net also gets Arial (its UI shows boxes without it)
     // and its client config set to software rendering before the first start, which is the known fix for a black launcher under Wine.
@@ -34,6 +78,11 @@ extension Model {
                 self.busy = false
                 guard r.contains("__ok") else { self.log += "Download failed: \(r)\n"; return }
                 if s == .battlenet { self.battlenetConfig() }
+                if dst.hasSuffix(".msi") {   // Epic: silent MSI install, nothing to click; the client appears in the grid when msiexec is done
+                    self.log += "\(s.rawValue): installing…\n"
+                    self.wine(self.selected, ["msiexec", "/i", "Z:" + dst.replacingOccurrences(of: "/", with: "\\"), "/qn"]) { self.scan() }
+                    return
+                }
                 self.log += "\(s.rawValue): follow the installer; the client appears in the grid when it is done.\n"
                 var need = self.prepare(dst)
                 if s == .battlenet, winetricks != nil, !need.verbs.contains("arial") { need.verbs.append("arial") }
@@ -65,6 +114,7 @@ extension Model {
                 }
             }
         }
+        for s in Store.allCases { if let e = storeExe(s) { out.append(e) } }   // store clients that live deeper than the plain scan looks (Epic's Portal/Binaries/Win64)
         epicGames = [:]
         if let l = legendary, let data = shell("'\(l)' list-installed --json 2>/dev/null").data(using: .utf8),
            let list = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]] {

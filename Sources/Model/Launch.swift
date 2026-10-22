@@ -14,9 +14,13 @@ extension Model {
     // bundle path breaks Steam's first window, but a *copy* of the 27 KB loader named after the program, kept in the engine's bin folder so
     // libraries resolve, survives the re-exec — the CrossOver trick. Children inherit it, so Steam's helpers are "Steam" too.
     func loaderNamed(_ exe: String) -> String {
-        let name = appName(exe).replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
+        // Spaces become no-break spaces: the Dock shows them as spaces, but a loader path with an ASCII space breaks programs that start
+        // Windows services (GOG Galaxy's client service page-faulted and the client never got its window).
+        let ascii = appName(exe).replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
+        let name = ascii.replacingOccurrences(of: " ", with: "\u{00A0}")
         guard name != "wine", !name.isEmpty else { return wineBin }
-        let copy = (wineBin as NSString).deletingLastPathComponent + "/" + name, fm = FileManager.default
+        let dir = (wineBin as NSString).deletingLastPathComponent, copy = dir + "/" + name, fm = FileManager.default
+        if ascii != name { try? fm.removeItem(atPath: dir + "/" + ascii) }   // older copy with real spaces
         let fresh = (try? fm.attributesOfItem(atPath: copy))?[.modificationDate] as? Date ?? .distantPast
         let src = (try? fm.attributesOfItem(atPath: wineBin))?[.modificationDate] as? Date ?? .distantPast
         if fresh < src { try? fm.removeItem(atPath: copy); try? fm.copyItem(atPath: wineBin, toPath: copy) }   // refresh after an engine update
@@ -80,7 +84,9 @@ extension Model {
         if Store.battlenet.exes.contains(where: { exe.hasSuffix("/" + ($0 as NSString).lastPathComponent) }) { battlenetConfig() }   // keeps the launcher on software rendering
         let (cmd, args) = launchCmd(exe)
         log += powerHints()
-        let need = prepare(exe)
+        var need = prepare(exe)
+        if options(exe)["DRIVERS"] == nil, let d = storeDrivers(exe) { need.drivers = d }   // store clients: DXMT set unless the user chose otherwise
+        for s in Store.allCases where storeExe(s) == exe { need.args += s.args; if s == .epic { finishEpicLauncherUpdate(exe) } }
         // A Steam game inherits Steam's environment, so a driver change OR per-game env from Options… needs Steam restarted with it.
         start(need, cmd, args, exe: exe, restartSteam: steamGames[exe] != nil && (need.drivers != nil || !need.env.isEmpty || need.restartSteam) && list.contains("C:\\Program Files (x86)\\Steam\\steam.exe"))
     }
