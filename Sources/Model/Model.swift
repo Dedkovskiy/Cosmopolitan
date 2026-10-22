@@ -202,6 +202,7 @@ import SwiftUI
         // Extras from "Find apps" (dropped silently once uninstalled).
         for p in ((try? String(contentsOfFile: "\(bottlesDir)/\(selected)/cosmopolitan.apps", encoding: .utf8)) ?? "").components(separatedBy: "\n")
             where !p.isEmpty && !found.contains(p) && FileManager.default.fileExists(atPath: p) { found.append(p) }
+        found = dedupe(found)   // one tile per application folder
         for p in found where icons[p] == nil { icons[p] = exeIcon(p) }
         programs = found.sorted { ($0 as NSString).lastPathComponent.lowercased() < ($1 as NSString).lastPathComponent.lowercased() }
         verifyAll(); fetchArt()
