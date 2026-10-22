@@ -1,7 +1,14 @@
 # Wine 11.x on macOS 27: black Steam window (client surface detached)
 
-Status: analysis only. Not reproducible on demand here because the only working engine is Wine 10.0; the
-Sikarugir 11.0_1 build dies earlier (see the loader fallback patch).
+Status: analysis only. Not reproducible on demand here because the only working engine is Wine 10.0.
+
+Attempt on 2026-10-22 with the Sikarugir 11.0_1 engine (APFS clone of the Steam bottle): the engine ships
+two loaders, `bin/wine` (wrapper, 4 GB `__PAGEZERO`, no `WINE_RESERVE`) and `lib/wine/x86_64-unix/wine`
+(upstream layout, reserve segment present). Through the second one, with `WINELOADER` pointing at it too,
+the first process initialises fully, but every child (`wineboot.exe` from `start.exe /exec`) exits with
+code 1 and no message right after mapping its exe, ntdll.dll and apisetschema.dll, with or without
+msync/esync. So the engine needs Sikarugir's own launch environment, and a log for this bug needs a plain
+x86_64 Wine 11 build (`arch -x86_64` configure with the brew LLVM PE toolchain, roughly an hour of build).
 
 ## What was observed
 Steam under Wine 11.x on macOS 27 (Apple M2 Max) opens, logs
