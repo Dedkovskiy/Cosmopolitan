@@ -13,7 +13,10 @@ mkdir -p dsyms; ditto -c -k --keepParent Cosmopolitan.app.dSYM "dist/Cosmopolita
 cp -R Cosmopolitan.app.dSYM "dsyms/Cosmopolitan-$COSMO_VERSION-$COSMO_BUILD.dSYM"   # local archive of every shipped build's symbols
 # DMG for first-time downloads (Sparkle updates from the zip): the app plus an Applications shortcut, compressed.
 rm -rf dist/dmgroot "dist/Cosmopolitan-$COSMO_VERSION.dmg"; mkdir -p dist/dmgroot && cp -R Cosmopolitan.app dist/dmgroot/ && ln -s /Applications dist/dmgroot/Applications
-hdiutil create -quiet -volname "Cosmopolitan $COSMO_VERSION" -srcfolder dist/dmgroot -ov -format UDZO "dist/Cosmopolitan-$COSMO_VERSION.dmg" && rm -rf dist/dmgroot
+# macOS 26+: `diskutil image` (2 s); hdiutil is deprecated there and stalled for minutes on macOS 27. Older systems fall back to it.
+diskutil image create from dist/dmgroot "dist/Cosmopolitan-$COSMO_VERSION.dmg" --format UDZO --volumeName "Cosmopolitan $COSMO_VERSION" >/dev/null 2>&1 \
+  || hdiutil create -quiet -volname "Cosmopolitan $COSMO_VERSION" -srcfolder dist/dmgroot -ov -format UDZO "dist/Cosmopolitan-$COSMO_VERSION.dmg"
+rm -rf dist/dmgroot
 # Appcast: generate_appcast signs the app zip with the EdDSA key and writes the feed; the enclosure URL points at this version's GitHub release,
 # and the feed itself is served from the *latest* release (SUFeedURL in build.sh), so publishing a release is publishing the update.
 REPO=${COSMO_REPO:-cyber-prinzesse/Cosmopolitan}
