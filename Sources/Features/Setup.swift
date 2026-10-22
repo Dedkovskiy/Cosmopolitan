@@ -76,6 +76,11 @@ extension Model {
             step("Installing .NET support (Wine Mono from WineHQ)…", 0.95)
             if !installWineMono(pfx, log: { step($0.trimmingCharacters(in: .whitespacesAndNewlines), 0.97) }) { step("⚠ .NET support could not be installed now; it is retried before the first .NET program starts.", 0.97) }
         }
+        // Microsoft runtimes, pinned: downloaded and checked now, installed into a bottle when a program needs them.
+        step("Downloading Microsoft runtimes (Visual C++ v14 x86/x64, DirectX June 2010)…", 0.98)
+        for r in Runtime.allCases where fetchPinned(r.pin, log: { step($0.trimmingCharacters(in: .whitespacesAndNewlines), 0.98) }) == nil {
+            step("⚠ \(r.pin.name) could not be downloaded now; it is fetched again when a program needs it.", 0.98)
+        }
         step("✓ Ready: \(v), drivers installed, bottle ready.", 1)
         return true
     }

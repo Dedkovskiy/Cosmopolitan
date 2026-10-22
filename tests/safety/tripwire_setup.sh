@@ -25,5 +25,9 @@ grep -i "deny\|Operation not permitted" "$T/setup.log" | head -3
 [[ $rc == 0 ]] || fail "setup failed in the throwaway home (exit $rc): $(tail -3 "$T/setup.log")"
 [[ -f "$TS/bottles/Games/drive_c/windows/system32/kernel32.dll" ]] || fail "setup made no first bottle in the throwaway home"
 grep -q "^netprobe ok" "$TS/bottles/Games/.dotnet-verified" 2>/dev/null || fail "setup's first bottle has no working .NET (Wine Mono + probe)"
+grep -q "Downloading Microsoft runtimes" "$T/setup.log" || fail "setup did not fetch the Microsoft runtimes"
+for f in vc_redist.x86.exe:f0bab33a vc_redist.x64.exe:84306899 directx_Jun2010_redist.exe:053f76dc; do
+  [[ "$(shasum -a 256 "$TS/cache/${f%%:*}" 2>/dev/null | cut -c1-8)" == "${f##*:}" ]] || fail "setup's cache lacks a verified ${f%%:*}"
+done
 tw_check sandboxed || fail "your real data changed"
 print "PASS tripwire_setup: setup ran entirely in $TH; your data is unchanged"

@@ -13,6 +13,18 @@ enum Pins {
         sha256: "cf6173ae94b79e9de13d9a74cdb2560a886fc3d271f9489acb1cfdbd961cacb2",
         license: "MIT, with bundled components under their own licences", source: "WineHQ (same bytes as github.com/madewokherd/wine-mono, release wine-mono-9.4.0)")
 
+    // Microsoft runtimes, downloaded from Microsoft at setup and installed into a bottle when a program needs them; never bundled.
+    // Microsoft's versioned URLs carry the file's SHA-256 in the path, and it matches the pin.
+    static let vcRedist86 = Pinned(name: "Microsoft Visual C++ v14 Redistributable (x86)", version: "14.51.36247.0", file: "vc_redist.x86.exe",
+        url: "https://download.visualstudio.microsoft.com/download/pr/6ad63323-a427-4c58-8464-9f1f19f62359/F0BAB33A302B3CDB2E11113760D016F54FD3D2632C65BA7834FAC4F0ABD7F1A3/VC_redist.x86.exe",
+        sha256: "f0bab33a302b3cdb2e11113760d016f54fd3d2632c65ba7834fac4f0abd7f1a3", license: "Microsoft Software License Terms (aka.ms/VCRedistLicense)", source: "Microsoft, aka.ms/vc14/vc_redist.x86.exe")
+    static let vcRedist64 = Pinned(name: "Microsoft Visual C++ v14 Redistributable (x64)", version: "14.51.36247.0", file: "vc_redist.x64.exe",
+        url: "https://download.visualstudio.microsoft.com/download/pr/ebdab8e5-1d7b-4d9f-a11b-cbb1720c3b12/843068991DAAA1F73AD9F6239BCE4D0F6A07A51F18C37EA2A867E9BECA71295C/VC_redist.x64.exe",
+        sha256: "843068991daaa1f73ad9f6239bce4d0f6a07a51f18c37ea2a867e9beca71295c", license: "Microsoft Software License Terms (aka.ms/VCRedistLicense)", source: "Microsoft, aka.ms/vc14/vc_redist.x64.exe")
+    static let directX = Pinned(name: "DirectX End-User Runtime (June 2010)", version: "9.29.1974", file: "directx_Jun2010_redist.exe",
+        url: "https://download.microsoft.com/download/8/4/A/84A35BF1-DAFE-4AE8-82AF-AD2AE20B6B14/directx_Jun2010_redist.exe",
+        sha256: "053f76dcbb28802e23341b6a787e3b0791c0fa5c8d4d011b1044172dbf89c73b", license: "Microsoft DirectX End-User Runtime terms (shown by the installer)", source: "Microsoft Download Center, id 8109")
+
     // Sikarugir builds, kept until upstream replacements pass the test suite (decision of 2026-10-23). The engine is pinned by its tarball's
     // SHA-256. The template archive also contains Apple's D3DMetal, so it is never pinned or kept whole: its d3dmetal and apple_gptk folders
     // are skipped while extracting, and only the parts Cosmopolitan uses are pinned, by tree hash.

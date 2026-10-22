@@ -1,7 +1,7 @@
 import SwiftUI
 
 extension Model {
-    struct Needs { var drivers: [String]?; var verbs: [String]; var note: String; var overrides: [(String, String)] = []; var env: [String: String] = [:]; var args: [String] = []; var desktop = false; var winver = ""; var status: Color = .green; var dx12 = false; var anticheat: (Color, String)? = nil; var restartSteam = false; var needsDotNet = false }
+    struct Needs { var drivers: [String]?; var verbs: [String]; var note: String; var overrides: [(String, String)] = []; var env: [String: String] = [:]; var args: [String] = []; var desktop = false; var winver = ""; var status: Color = .green; var dx12 = false; var anticheat: (Color, String)? = nil; var restartSteam = false; var needsDotNet = false; var runtimes: [Runtime] = [] }
     func launchNeeds(_ exe: String) -> Needs {
         let name = (exe as NSString).lastPathComponent, dir = (exe as NSString).deletingLastPathComponent, fm = FileManager.default
         if peRead(exe).info.error != 0 {   // truncated or malformed header: a clear answer instead of a guess
@@ -64,6 +64,8 @@ extension Model {
         else if !plan.drivers.isEmpty, !serves(driverList(launchEnvRaw(), bottle: selected), plan) {
             drivers = plan.drivers; parts.append("using \(plan.drivers.joined(separator: "+")) for this launch")
         }
+        // Missing DLLs that a pinned Microsoft runtime provides are installed from Microsoft's own installer before the launch.
+        var runtimes = Set(missing.compactMap { Model.runtimeFor(dll: $0, is32: is32) })
         var verbs = Array(Set(missing.compactMap { depVerbs[$0] })).sorted()
         // .NET: ready only once the probe program has actually run in this bottle (Wine Mono from WineHQ, installed with the bottle).
         var dotnet = ""   // "", "pending" (not checked yet), "bad" (probe failed)
@@ -85,7 +87,8 @@ extension Model {
             acNames += c.anticheat.filter { !acNames.contains($0) }
             // Highball's curated backend only orders the choice inside the driver plan above (it cannot pick a driver lacking the game's DLLs).
             if !c.renderer.isEmpty { parts.append("Highball \(c.hbStatus): \(c.renderer)") }
-            verbs += c.verbs.filter { !verbs.contains($0) }; n.overrides = c.overrides; n.env = c.env; n.args = c.args
+            for v in c.verbs { let r = Model.runtimesFor(verb: v); if r.isEmpty { if !verbs.contains(v) { verbs.append(v) } } else { runtimes.formUnion(r) } }   // pinned Microsoft runtimes instead of winetricks
+            n.overrides = c.overrides; n.env = c.env; n.args = c.args
             if !(c.verbs.isEmpty && c.overrides.isEmpty && c.env.isEmpty && c.args.isEmpty) { parts.append("applying community fixes" + (c.overrides.isEmpty ? "" : " (overrides: " + c.overrides.map { "\($0.0)=\($0.1)" }.joined(separator: ", ") + ")") + (c.args.isEmpty ? "" : " args " + c.args.joined(separator: " "))) }
             if !c.launchArgs.isEmpty { n.args += c.launchArgs.split(separator: " ").map(String.init) }
         }
@@ -105,14 +108,17 @@ extension Model {
         // §7.10 Locale: LANG=ja_JP.UTF-8 (etc.) reaches Wine as-is; CJK locales also get the matching fonts so old games don't show boxes.
         if let l = o["LANG"], ["ja", "zh", "ko"].contains(where: { l.hasPrefix($0) }), !verbs.contains("cjkfonts") { verbs.append("cjkfonts"); parts.append("locale \(l) + CJK fonts") }
         if !o.isEmpty { parts.append("custom options: " + o.keys.sorted().joined(separator: " ")) }
-        let unknown = missing.filter { depVerbs[$0] == nil }
+        let unknown = missing.filter { depVerbs[$0] == nil && Model.runtimeFor(dll: $0, is32: is32) == nil }
+        let pfxR = "\(bottlesDir)/\(selected)"
+        n.runtimes = runtimes.filter { !fm.fileExists(atPath: Model.runtimeMarker(pfxR, $0)) }.sorted { $0.rawValue < $1.rawValue }
+        if !n.runtimes.isEmpty { parts.append("installs " + n.runtimes.map { $0.pin.name }.joined(separator: ", ") + " from Microsoft first") }
         if !verbs.isEmpty { parts.append(winetricks == nil ? "needs \(verbs.joined(separator: " ")) — brew install winetricks to fetch automatically" : "fetching \(verbs.joined(separator: " ")) via winetricks") }
         if !unknown.isEmpty { parts.append("missing DLLs: " + unknown.joined(separator: ", ")) }
         n.note = imps.isEmpty && parts.isEmpty ? "" : "Launch check \(name): " + (imps.isEmpty ? "" : "\(imps.count) DLLs") + (parts.isEmpty ? ", all available" : (imps.isEmpty ? "" : " — ") + parts.joined(separator: "; ")) + "\n"
         n.verbs = winetricks == nil ? [] : verbs
         // Tile light: red = will not start as is, yellow = starts after automatic work or with a caveat, green = ready.
         let red = !unknown.isEmpty || (!verbs.isEmpty && winetricks == nil) || n.anticheat?.0 == .red || !plan.missing.isEmpty || parts.contains { $0.contains("brew install") || $0.contains("accept Apple's license") }
-        let yellow = !verbs.isEmpty || drivers != nil || desktop || n.anticheat != nil || parts.contains { $0.contains("ProtonDB silver") || $0.contains("ProtonDB bronze") || $0.contains("ProtonDB borked") || $0.contains("ProtonDB pending") }
+        let yellow = !verbs.isEmpty || !n.runtimes.isEmpty || drivers != nil || desktop || n.anticheat != nil || parts.contains { $0.contains("ProtonDB silver") || $0.contains("ProtonDB bronze") || $0.contains("ProtonDB borked") || $0.contains("ProtonDB pending") }
         n.needsDotNet = !dotnet.isEmpty
         n.status = red || dotnet == "bad" ? .red : yellow || dotnet == "pending" ? .yellow : .green
         return n
