@@ -6,6 +6,7 @@ func launchEnv(_ bottle: String, drivers: [String]? = nil) -> [String: String] {
     var e = ["WINEPREFIX": "\(bottlesDir)/\(bottle)", "WINEDEBUG": "-all",
              "VK_DRIVER_FILES": support + "/engines/WS12WineSikarugir10.0_8/wswine.bundle/MoltenVK_icd.json",
              "MVK_CONFIG_RESUME_LOST_DEVICE": "1", "MVK_CONFIG_FAST_MATH_ENABLED": "1",
+             "MVK_CONFIG_LOG_LEVEL": "1",   // errors only: MoltenVK otherwise prints its 150-line extension list for every VkInstance (Qt apps make six at startup)
              // Video/audio decoding (Media Foundation, DirectShow) goes through GStreamer; the framework comes from the Sikarugir template.
              "GST_PLUGIN_PATH": support + "/engines/gstreamer/GStreamer.framework/Versions/1.0/lib/gstreamer-1.0",
              "GST_PLUGIN_SYSTEM_PATH_1_0": support + "/engines/gstreamer/GStreamer.framework/Versions/1.0/lib/gstreamer-1.0",
