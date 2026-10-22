@@ -124,8 +124,20 @@ extension Model {
         }
         for s in Store.allCases { if let e = storeExe(s) { out.append(e) } }   // store clients that live deeper than the plain scan looks (Epic's Portal/Binaries/Win64)
         epicGames = [:]
-        if let l = legendary, let data = shell("'\(l)' list-installed --json 2>/dev/null").data(using: .utf8),
-           let list = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]] {
+        // Legendary is a Python program (~0.4 s per call): never run it inside a scan. Use the last answer and refresh it in the
+        // background; when the installed list changed, scan once more.
+        if let l = legendary {
+            let cacheFile = "\(bottlesDir)/\(selected)/options/.epic-installed.json"
+            Task.detached { [weak self] in
+                let fresh = shell("'\(l)' list-installed --json 2>/dev/null")
+                let old = (try? String(contentsOfFile: cacheFile, encoding: .utf8)) ?? ""
+                guard !fresh.isEmpty, fresh != old else { return }
+                try? fresh.write(toFile: cacheFile, atomically: true, encoding: .utf8)
+                await MainActor.run { self?.scan() }
+            }
+        }
+        if legendary != nil, let data = try? Data(contentsOf: URL(fileURLWithPath: "\(bottlesDir)/\(selected)/options/.epic-installed.json")),
+           let list = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]], let l = legendary {
             for g in list {
                 guard let path = g["install_path"] as? String, path.hasPrefix(c), let exe = g["executable"] as? String, let id = g["app_name"] as? String else { continue }
                 let p = "\(path)/\(exe.replacingOccurrences(of: "\\", with: "/"))"
@@ -133,7 +145,7 @@ extension Model {
             }
             // `list --json` came back empty for this account while the plain listing (with -T for third-party-managed titles) had the
             // games, so the text form is parsed:  " * Title (App name: xyz | Version: …)"; "  + …" lines are DLC and are skipped.
-            if epicSignedIn() { Task.detached {
+            if epicSignedIn(), epicOwned.isEmpty { Task.detached {   // once per app run (a network call), not on every scan
                 let s = shell("'\(l)' list --platform Windows -T 2>/dev/null")   // on macOS Legendary defaults to the Mac platform, which lists nothing here
                 var owned: [(id: String, name: String)] = []
                 for line in s.components(separatedBy: "\n") where line.hasPrefix(" * ") {

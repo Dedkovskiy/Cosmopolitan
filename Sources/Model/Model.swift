@@ -95,7 +95,7 @@ import SwiftUI
                 guard let self else { return }
                 rescanWork?.cancel()
                 let w = DispatchWorkItem { Task { @MainActor in self.scan() } }; rescanWork = w
-                DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: w)   // debounce: Steam touches the folder many times per install
+                DispatchQueue.main.asyncAfter(deadline: .now() + 8, execute: w)   // debounce: Steam and the store clients touch these folders constantly while running
             }
             src.setCancelHandler { close(fd) }
             src.resume(); watchers.append(src)
@@ -105,6 +105,7 @@ import SwiftUI
     init() {
         refresh()
         checkDriverUpdates()
+        if !cliMode { dailyCleanUp() }
         autostart()
         // Pad on/off and driver folders change outside the app; re-check every 5 s (one ioreg call, ~30 ms).
         Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in Task { @MainActor in self?.updateStatus() } }

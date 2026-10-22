@@ -34,7 +34,7 @@ extension Model {
             if FileManager.default.fileExists(atPath: dst + "/wine/x86_64-windows") { out += "✓ \(d.name) updated to \(d.tag) (previous kept as \(d.name).old)\n" }
             else { _ = shell("rm -rf '\(dst)'; mv '\(dst).old' '\(dst)'"); out += "✗ \(d.name): install failed, previous version restored\n" }
         }
-        _ = shell("find '\(driversDir)' -maxdepth 1 -name '*.old' -mtime +7 -exec rm -rf {} +")   // rollbacks older than a week are no longer useful
+        // One previous version per driver (<name>.old) stays until the next update replaces it: the rollback is always there if needed.
         // Newest Sikarugir template (carries D3DMetal and the engine's dylibs): fetch it ourselves if the Creator app hasn't.
         let tpl = NSHomeDirectory() + "/Library/Application Support/Sikarugir/Template"
         let newestTpl = shell("curl -s -m 8 https://sikarugir-app.github.io/Template/NewestVersion.txt").trimmingCharacters(in: .whitespacesAndNewlines)

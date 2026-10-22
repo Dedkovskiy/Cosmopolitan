@@ -142,6 +142,8 @@ struct ContentView: View {
                     }.controlSize(.small).frame(width: 120).disabled(m.selected.isEmpty)
                     Button("Troubleshoot") { m.troubleshoot() }.controlSize(.small)
                     Button("Repair") { m.repair() }.controlSize(.small).disabled(m.selected.isEmpty || m.busy)
+                    Button("Clean up") { m.runCleanUp() }.controlSize(.small).disabled(m.busy)
+                        .help("Removes temp files, crash dumps, old logs, used installers and download caches. Keeps one previous version of each driver and engine and the two newest safety clones. Runs by itself once a day.")
                         .help("Kills stuck Wine processes and restores the bottle defaults: SDL controllers, 96 DPI, Steam overrides.")
                 }
                 ScrollView { Text(m.log).font(.system(.caption, design: .monospaced)).frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled) }
