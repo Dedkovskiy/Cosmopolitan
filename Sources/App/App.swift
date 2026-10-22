@@ -7,7 +7,7 @@ let updater = SPUStandardUpdaterController(startingUpdater: true, updaterDelegat
     // Terminal use: Cosmopolitan.app/Contents/MacOS/Cosmopolitan --troubleshoot [bottle] | --repair [bottle]  (same code as the buttons)
     init() {
         let a = CommandLine.arguments
-        let modes = ["--troubleshoot", "--repair", "--input", "--find", "--status", "--check", "--update", "--launch", "--tune", "--tunesteam", "--newbottle", "--accept-d3dmetal", "--snapshot", "--rollback", "--importables", "--import", "--willitrun", "--bugreport", "--hints", "--offline", "--compress", "--shaders", "--volumes", "--offlineexe", "--uslayout"]   // --launch <bottle> <exe> [seconds]   // --check <bottle> <exe>: dry-run of the launch check
+        let modes = ["--troubleshoot", "--repair", "--input", "--find", "--status", "--check", "--update", "--launch", "--tune", "--tunesteam", "--newbottle", "--accept-d3dmetal", "--snapshot", "--rollback", "--importables", "--import", "--willitrun", "--bugreport", "--hints", "--offline", "--compress", "--shaders", "--volumes", "--offlineexe", "--uslayout", "--hudocr", "--saves", "--mods", "--addmod", "--mod", "--rumble", "--padmode"]   // --launch <bottle> <exe> [seconds]   // --check <bottle> <exe>: dry-run of the launch check
         guard let i = a.firstIndex(where: { modes.contains($0) }) else { return }
         cliMode = true
         let m = Model()
@@ -23,6 +23,13 @@ let updater = SPUStandardUpdaterController(startingUpdater: true, updaterDelegat
         case "--hints": m.log += m.powerHints().isEmpty ? "no power/thermal hints right now\n" : m.powerHints()
         case "--offline": m.offlineCheck()
         case "--shaders": m.shaderCacheReport()
+        case "--hudocr": if i + 2 < a.count { m.log += "fps read from image: \(Model.hudFPS(in: a[i + 2]).map { String($0) } ?? "none")\n" }
+        case "--saves": if i + 2 < a.count { m.log += "save folders: \(m.saveFolders(a[i + 2]))\n" }
+        case "--mods": if i + 2 < a.count { m.log += "\(m.mods(a[i + 2]))\n" }
+        case "--addmod": if i + 3 < a.count { m.addMod(a[i + 2], from: a[i + 3]) }
+        case "--mod": if i + 4 < a.count { m.setMod(a[i + 2], a[i + 3], enabled: a[i + 4] == "on") }
+        case "--rumble": m.testRumble(); RunLoop.main.run(until: Date().addingTimeInterval(2))
+        case "--padmode": if i + 2 < a.count { let changed = m.ensureControllerMode(for: a[i + 2]); m.log += "changed: \(changed); hidraw disabled now: \(m.hidrawDisabled())\n" }
         case "--uslayout":   // test: switch to US for 3 s, then restore
             let before = Model.currentLayoutID(); m.log += "before: \(before)\n"
             m.log += "select US: \(Model.selectLayout("com.apple.keylayout.US")) → now \(Model.currentLayoutID())\n"

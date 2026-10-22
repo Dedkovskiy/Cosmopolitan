@@ -22,10 +22,14 @@ extension Model {
     # LANG=ja_JP.UTF-8              run in another locale; ja/zh/ko also install matching fonts
     # MOUSE_CAPTURE=1               keep the cursor inside the game window (camera-heavy games)
     # US_KEYBOARD=1                 switch macOS to the US layout while this game runs (automatic for Cyrillic & other non-Latin layouts; 0 = never)
+    # DUALSENSE=native              give this game the real DualSense (adaptive triggers, haptics, touchpad) instead of an Xbox-style pad;
+    #                               only for games with PC DualSense support — others then lose XInput. Steam restarts when the mode flips.
     # FOCUS_SHORTCUT=Gaming         run this macOS Shortcut when the game starts and when it exits
     # PAUSE_IN_BACKGROUND=1         suspend the game while another app is in front (single-player only)
     # ROSETTA_ADVERTISE_AVX=0       force AVX off/on for this program (auto-detected otherwise)
     # D3DM_MAX_FPS=60               frame-rate cap (D3DMetal); DXMT_CONFIG=d3d11.preferredMaxFrameRate=60 for DXMT
+    # CLOUD_SAVES=1                 mirror this program's save folders to iCloud Drive (non-Steam programs; Steam has Steam Cloud)
+    # REPLAY=1                      rolling 30 s screen recording while playing: ⌃⌥⌘R saves the last clip, ⌃⌥⌘S a screenshot
     # WINEDLLOVERRIDES=xaudio2_7=n  any other KEY=VALUE becomes an environment variable
 
     """

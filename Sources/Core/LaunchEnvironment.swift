@@ -9,6 +9,8 @@ func launchEnv(_ bottle: String, drivers: [String]? = nil) -> [String: String] {
              // Video/audio decoding (Media Foundation, DirectShow) goes through GStreamer; the framework comes from the Sikarugir template.
              "GST_PLUGIN_PATH": support + "/engines/gstreamer/GStreamer.framework/Versions/1.0/lib/gstreamer-1.0",
              "GST_PLUGIN_SYSTEM_PATH_1_0": support + "/engines/gstreamer/GStreamer.framework/Versions/1.0/lib/gstreamer-1.0",
+             // DualSense through SDL's own hidapi driver: rumble reaches the pad's motors via XInput vibration; player LED off (no distraction).
+             "SDL_JOYSTICK_HIDAPI": "1", "SDL_JOYSTICK_HIDAPI_PS5": "1", "SDL_JOYSTICK_HIDAPI_PS5_PLAYER_LED": "0",
              // Wine hands DOS programs to `dosbox` from PATH; apps launched from Finder don't see Homebrew's bin otherwise.
              "PATH": "/opt/homebrew/bin:/usr/local/bin:" + (ProcessInfo.processInfo.environment["PATH"] ?? "/usr/bin:/bin")]
     let t = (try? String(contentsOfFile: "\(bottlesDir)/\(bottle)/cosmopolitan.env", encoding: .utf8)) ?? ""

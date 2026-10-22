@@ -111,6 +111,7 @@ import SwiftUI
     }
 
     func refresh() {
+        linkSharedBottles()
         let all = (try? FileManager.default.contentsOfDirectory(atPath: bottlesDir)) ?? []
         // Safety clones made before Repair (.auto-<bottle>-<date>) stay hidden and are dropped after 30 days.
         for b in all where b.hasPrefix(".auto-") {

@@ -11,6 +11,7 @@ struct ContentView: View {
     @State var licRead = false
     @State var showTerms = !termsAccepted()
     @State var showSnaps = false
+    @State var modExe: String? = nil
     @State var showWIR = false
     @State var wirLink = ""
     @State var showImport = false
@@ -35,6 +36,8 @@ struct ContentView: View {
                         .help("APFS clones taken before Repair, runtime installs, overrides and access changes. Roll back in seconds.")
                     Button("Import…") { showImport = true }.controlSize(.small)
                         .help("Bring in bottles from Whisky, CrossOver or Sikarugir wrappers as APFS clones. Originals are never modified.")
+                    Button("Share with other users") { m.shareBottle() }.controlSize(.small).disabled(m.selected.isEmpty || m.busy)
+                        .help("Moves the bottle to /Users/Shared and links it back; other macOS users get it in their list, each with their own saves.")
                     Menu("Move to drive…") {   // §8.4 external drives: copies the bottle, leaves a link; hides while unplugged
                         let vols = m.externalVolumes()
                         if vols.isEmpty { Text("No writable external drive connected") }
@@ -106,6 +109,9 @@ struct ContentView: View {
                                 if let off = m.offlineExe(p) { Button("Launch offline version (official, offline only)") { m.launch(off) } }
                                 Button("Check requirements") { m.readiness[p] = m.launchNeeds(p); m.log += m.readiness[p]?.note ?? ""; if m.readiness[p]?.note.isEmpty ?? true { m.log += "\(appName(p)): nothing special needed.\n" } }
                                 Button("Options…") { optText = (try? String(contentsOfFile: m.optionsPath(p), encoding: .utf8)) ?? Model.optionsTemplate; optExe = p }
+                                Button("Mods…") { modExe = p }
+                                Button("Benchmark (90 s, Metal HUD)") { m.benchmark(p) }
+                                Button("fps history") { m.log += m.fpsHistory(p) }
                                 Button("Try next driver set") { m.bisect(p) }
                                 Button("Report result to Highball…") { m.reportToHighball(p) }
                                 Button("Compress on disk (APFS)…") { m.compressGame(p) }
@@ -123,6 +129,8 @@ struct ContentView: View {
                         .help("Which programs will start without internet, and what to do in Steam before a trip.")
                     Button("Bug report") { m.copyBugReport() }.controlSize(.small)
                         .help("Copies a report with log, engine, drivers and Mac details to the clipboard, with your username and home folder removed.")
+                    Button("Test rumble") { m.testRumble() }.controlSize(.small)
+                        .help("Pulses the connected controller's motors from macOS; in games, rumble arrives through SDL. Adaptive triggers are not available under Wine.")
                     Button("Input check") { m.inputCheck() }.controlSize(.small).disabled(m.selected.isEmpty || m.busy)
                         .help("Checks controller + keyboard from macOS through Wine, then opens Wine's Game Controllers panel for a live test.")
                     Menu("Shader caches") {
@@ -139,6 +147,7 @@ struct ContentView: View {
         }
         .frame(minWidth: 760, minHeight: 700)
         .sheet(isPresented: $showWIR) { willItRunSheet }
+        .sheet(isPresented: Binding(get: { modExe != nil }, set: { if !$0 { modExe = nil } })) { modsSheet }
         .sheet(isPresented: $showSnaps) { snapshotsSheet }
         .sheet(isPresented: $showImport) { importBottlesSheet }
         .sheet(isPresented: $showTerms) { termsSheet }

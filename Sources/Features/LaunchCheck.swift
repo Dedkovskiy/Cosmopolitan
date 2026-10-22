@@ -1,7 +1,7 @@
 import SwiftUI
 
 extension Model {
-    struct Needs { var drivers: [String]?; var verbs: [String]; var note: String; var overrides: [(String, String)] = []; var env: [String: String] = [:]; var args: [String] = []; var desktop = false; var winver = ""; var status: Color = .green; var dx12 = false; var anticheat: (Color, String)? = nil }
+    struct Needs { var drivers: [String]?; var verbs: [String]; var note: String; var overrides: [(String, String)] = []; var env: [String: String] = [:]; var args: [String] = []; var desktop = false; var winver = ""; var status: Color = .green; var dx12 = false; var anticheat: (Color, String)? = nil; var restartSteam = false }
     func launchNeeds(_ exe: String) -> Needs {
         let name = (exe as NSString).lastPathComponent, dir = (exe as NSString).deletingLastPathComponent, fm = FileManager.default
         var imps = exeImports(exe)

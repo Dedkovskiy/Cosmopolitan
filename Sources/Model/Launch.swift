@@ -80,12 +80,13 @@ extension Model {
         log += powerHints()
         let need = prepare(exe)
         // A Steam game inherits Steam's environment, so a driver change OR per-game env from Options… needs Steam restarted with it.
-        start(need, cmd, args, exe: exe, restartSteam: steamGames[exe] != nil && (need.drivers != nil || !need.env.isEmpty) && list.contains("C:\\Program Files (x86)\\Steam\\steam.exe"))
+        start(need, cmd, args, exe: exe, restartSteam: steamGames[exe] != nil && (need.drivers != nil || !need.env.isEmpty || need.restartSteam) && list.contains("C:\\Program Files (x86)\\Steam\\steam.exe"))
     }
 
     // Launch check + the registry it implies (overrides, old-era desktop, Windows version). Returns what start() needs.
     func prepare(_ exe: String) -> Needs {
-        let need = launchNeeds(exe)
+        var need = launchNeeds(exe)
+        need.restartSteam = ensureControllerMode(for: exe)   // DualSense native ⇄ XInput: bus-wide, so Steam must restart when it changes
         log += need.note
         // Community DLL overrides go into the bottle registry (idempotent, same place protonfixes puts them).
         let regEnv = launchEnv(selected).map { "\($0.key)='\($0.value)'" }.joined(separator: " ")

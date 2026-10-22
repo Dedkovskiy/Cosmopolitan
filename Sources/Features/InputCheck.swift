@@ -11,7 +11,7 @@ extension Model {
         check(!pads.isEmpty, pads.isEmpty ? "macOS sees a controller" : "macOS sees: \(pads)", "turn the pad on (PS/Xbox button) or pair it in Bluetooth settings")
         check(!sh("ioreg -r -c IOHIDDevice -l 2>/dev/null | grep -c -i '\"Product\" = \".*Keyboard'").hasPrefix("0"), "Keyboard present (Wine gets it through the Mac driver)")
         let bus = regSection("system.reg", "System\\CurrentControlSet\\Services\\winebus")
-        check(bus.contains("\"DisableHidraw\"=dword:00000001"), "Wine HID bus uses SDL → pad appears as XInput in every game", "Repair")
+        check(bus.contains("\"DisableHidraw\"=dword:00000001"), "Wine HID bus uses SDL → pad appears as XInput in every game", "a game with DUALSENSE=native is set up; launching any other game switches back")
         check(!bus.contains("\"Enable SDL\"=dword:00000000"), "Wine SDL backend enabled", "Repair")
         let reg = (try? String(contentsOfFile: "\(bottlesDir)/\(selected)/system.reg", encoding: .utf8)) ?? ""
         check(["054C", "045E", "057E", "28DE"].contains { reg.contains("Enum\\\\HID\\\\VID_\($0)") }, "Wine has seen a Sony/Microsoft/Nintendo/Steam pad in this bottle before", "turn the pad on and use the panel that opens now")
