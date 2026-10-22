@@ -11,7 +11,7 @@ extension Model {
         Task.detached(priority: .background) {
             for (id, path) in todo {
                 // Portrait box first; newer titles sometimes only have the landscape header.
-                _ = shell("for n in library_600x900.jpg header.jpg; do curl -s -m 15 -o '\(path)' -f \"https://cdn.cloudflare.steamstatic.com/steam/apps/\(id)/$n\" && break; rm -f '\(path)'; done")
+                _ = shell("for n in library_600x900.jpg header.jpg library_hero.jpg; do curl -s -m 15 -o '\(path)' -f \"https://cdn.cloudflare.steamstatic.com/steam/apps/\(id)/$n\" && break; rm -f '\(path)'; done")
             }
             await MainActor.run { self.artVersion += 1 }
         }
