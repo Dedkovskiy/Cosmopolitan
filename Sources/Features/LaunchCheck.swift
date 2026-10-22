@@ -112,7 +112,7 @@ extension Model {
             scanAVX(programs)   // background disassembly for exes not scanned yet; tiles update as results arrive
             // Bottle-wide DirectX 12 need: flip the marker, re-check the tiles against the new set, and restart Steam so games started from inside it match.
             let needs12 = programs.contains { readiness[$0]?.dx12 == true }, marker = dx12Marker(selected)
-            if needs12 != FileManager.default.fileExists(atPath: marker), bottle == selected {
+            if needs12 != FileManager.default.fileExists(atPath: marker), bottle == selected, !cliMode {   // CLI runs see a partial program list; never flip the bottle (and restart Steam) from there
                 if needs12 { FileManager.default.createFile(atPath: marker, contents: nil) } else { try? FileManager.default.removeItem(atPath: marker) }
                 log += needs12 ? "A Direct3D 12 game is installed: this bottle now runs d3dmetal for Direct3D 10/11/12.\n" : "No Direct3D 12 game left: back to dxmt for Direct3D 10/11.\n"
                 loadSettings(); for p in programs { readiness[p] = launchNeeds(p) }

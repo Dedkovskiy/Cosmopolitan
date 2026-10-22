@@ -9,6 +9,8 @@ extension Model {
         p.executableURL = URL(fileURLWithPath: path)
         p.arguments = args
         p.environment = ProcessInfo.processInfo.environment.merging(env) { $1 }
+        if let exe, FileManager.default.fileExists(atPath: exe) { p.currentDirectoryURL = URL(fileURLWithPath: (exe as NSString).deletingLastPathComponent) }   // like Explorer: a program starts in its own folder
+
         let pipe = Pipe(); p.standardOutput = pipe; p.standardError = pipe
         pipe.fileHandleForReading.readabilityHandler = { h in
             let s = String(decoding: h.availableData, as: UTF8.self)

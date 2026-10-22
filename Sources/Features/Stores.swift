@@ -120,16 +120,20 @@ extension Model {
         snapshot("before installing Epic game \(app)")
         exec(l, ["install", app, "--platform", "Windows", "--base-path", "\(bottlesDir)/\(selected)/drive_c/Games/Epic", "-y"], block: false) { self.scan() }
     }
-    // Launch through Legendary so the game gets Epic's auth arguments; Legendary runs our loader copy with our env (prefix, drivers, options).
+    // Legendary only describes the launch (`launch --json`: exe, Epic's auth arguments, env); Cosmopolitan starts Wine itself, as for every
+    // other program. Letting Legendary spawn Wine does not work: it exits right after spawning, its pipes close, and the game dies on
+    // its first write to stderr.
     func launchEpic(_ app: String, exe: String) {
         guard let l = legendary else { return }
-        let need = prepare(exe)
-        var env = launchEnv(selected, drivers: need.drivers).merging(need.env) { $1 }
-        env["WINEPREFIX"] = "\(bottlesDir)/\(selected)"
-        let args = ["launch", app, "--wine", loaderNamed(exe), "--wine-prefix", env["WINEPREFIX"]!] + (epicOnline() ? [] : ["--offline"]) + need.args + extraArgs(exe)
-        start(need, "", [], exe: exe, runner: { self.exec(l, args, env: env, block: false, exe: exe) })
+        var need = prepare(exe)
+        let js = shell("'\(l)' launch '\(app)' --json --wine '\(wineBin)' --wine-prefix '\(bottlesDir)/\(selected)' 2>/dev/null")
+        guard let d = js.data(using: .utf8), let info = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any] else {
+            log += "Legendary could not prepare the launch (not signed in, or the game needs an update: Stores… › Sign in / reinstall).\n"; return
+        }
+        for k in ["game_parameters", "egl_parameters", "user_parameters"] { need.args += (info[k] as? [String]) ?? [] }
+        for (k, v) in (info["environment"] as? [String: String]) ?? [:] where k != "CX_BOTTLE" && k != "WINEPREFIX" { need.env[k] = v }
+        start(need, winPath(exe), extraArgs(exe), exe: exe)
     }
-    func epicOnline() -> Bool { shell("curl -s -m 3 -o /dev/null -w '%{http_code}' https://www.epicgames.com/ 2>/dev/null").hasPrefix("2") }
 
     // ---- GOG (lgogdownloader) ----
     var lgog: String? { ["/opt/homebrew/bin/lgogdownloader", "/usr/local/bin/lgogdownloader"].first { FileManager.default.fileExists(atPath: $0) } }

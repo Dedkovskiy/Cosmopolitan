@@ -49,7 +49,7 @@ let updater = SPUStandardUpdaterController(startingUpdater: true, updaterDelegat
         print(m.log); exit(0)
     }
     var body: some Scene {
-        WindowGroup("Cosmopolitan") { ContentView() }   // cosmopolitan://launch?name=<program> handled in ContentView (§7.7 via Shortcuts/Siri)
+        WindowGroup("Cosmopolitan") { ContentView().handlesExternalEvents(preferring: ["launch"], allowing: ["*"]) }   // cosmopolitan://launch?name=<program> goes to the existing window, not a new one (§7.7 via Shortcuts/Siri)
             .commands { CommandGroup(after: .appInfo) { Button("Check for Updates…") { updater.checkForUpdates(nil) } } }
     }
 }
