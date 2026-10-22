@@ -7,7 +7,7 @@ extension ContentView {
         let epic = loginStore == "epic"
         VStack(alignment: .leading, spacing: 10) {
             Text(epic ? "Sign in to Epic Games" : "Sign in to GOG").font(.headline)
-            Text(epic ? "1. Open the sign-in page and log in with your Epic account.\n2. The page then shows a line like \"authorizationCode\": \"abc123…\". Copy that code.\n3. Paste it below. Legendary keeps the session in ~/.config/legendary; nothing else is stored."
+            Text(epic ? "1. Open the sign-in page and log in with your Epic account.\n2. The page then shows a line like \"authorizationCode\": \"abc123…\". Copy that code.\n3. Paste it below. Legendary keeps the session in ~/.config/legendary; nothing else is stored.\nIf the page shows errorCode … corrective_action_required (PRIVACY_POLICY_ACCEPTANCE), Epic wants you to accept its updated policy first: open epicgames.com/account, accept, then open the sign-in page again."
                       : "1. Open the sign-in page and log in with your GOG account.\n2. You land on a page that looks broken or empty; that is expected. Copy its full address from the address bar (it starts with https://embed.gog.com/on_login_success).\n3. Paste it below. lgogdownloader keeps the session in ~/.config/lgogdownloader; nothing else is stored.")
                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             Button("Open sign-in page") { NSWorkspace.shared.open(epic ? Model.epicLoginURL : Model.gogLoginURL) }
