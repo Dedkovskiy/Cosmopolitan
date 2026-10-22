@@ -4,10 +4,16 @@ Runs Windows games and programs on Apple Silicon Macs through Wine, with the gra
 layers (DXMT, DXVK, D3DMetal), controllers, runtimes and community fixes handled
 automatically. Free, open, unnotarized.
 
-## First launch
+## Install and updates
 
-The app is not notarized (no paid Apple Developer account), so macOS blocks the first
-open. Right-click `Cosmopolitan.app` → **Open** → **Open** in the dialog. Once is enough.
+Download `Cosmopolitan-<version>.dmg` from the [latest release](https://github.com/cyber-prinzesse/Cosmopolitan/releases/latest),
+open it and drag the app to Applications. The app is not notarized (no paid Apple Developer
+account), so macOS blocks the first open: right-click `Cosmopolitan.app` → **Open** → **Open**
+in the dialog. Once is enough.
+
+Updates arrive inside the app (Sparkle). Every GitHub release carries the signed update
+feed, so publishing a release with `scripts/release.sh` is what ships an update; the `.zip`
+is what the updater downloads, the `.dSYM.zip` holds the debug symbols for crash reports.
 
 ## D3DMetal (Direct3D 12) is optional and comes from Apple
 
