@@ -79,7 +79,7 @@ extension Model {
             parts.append("not installed through a store — run only if you trust where it came from")
         }
         // AVX (§7.2/§4.3): known from the cached disassembly count; Rosetta advertises AVX only to programs that have AVX code.
-        if let c = avxCount(exe), c > 500 { n.env["ROSETTA_ADVERTISE_AVX"] = "1"; parts.append("uses AVX (Rosetta AVX on)") }
+        if let c = avxCount(exe), c > 500 { n.env["ROSETTA_ADVERTISE_AVX"] = "1"; parts.append("uses AVX (Rosetta AVX on)" + (avx512Count(exe) > 1000 ? "; also has AVX-512 paths, which Rosetta never offers — the game falls back by itself" : "")) }
         else if avxCount(exe) == nil, era.kind == "pe" { parts.append("AVX scan pending") }
         // Per-program options (right-click → Options…): ARGS, DRIVERS, any other KEY=VALUE becomes environment. They win over detection.
         let o = options(exe)

@@ -4,8 +4,10 @@ set -e; cd "$(dirname "$0")/.."   # repo root (scripts/ lives one level down)
 rm -rf Cosmopolitan.app; mkdir -p Cosmopolitan.app/Contents/MacOS Cosmopolitan.app/Contents/Resources Cosmopolitan.app/Contents/Frameworks
 # Sparkle (MIT) for auto-updates: framework embedded, EdDSA public key in Info.plist, feed URL set in release.sh's appcast.
 cp -R Sparkle/Sparkle.framework Cosmopolitan.app/Contents/Frameworks/
+# Native C++ module (Sources/Native): compiled once per build, linked into the Swift binary through the bridging header.
+mkdir -p build; clang++ -std=c++17 -O2 -c Sources/Native/avxscan.cpp -o build/avxscan.o
 # -g keeps debug info; dsymutil moves it into a separate Cosmopolitan.app.dSYM (shipped next to releases, never inside the app).
-swiftc -parse-as-library -O -g -F Sparkle -framework Sparkle -Xlinker -rpath -Xlinker @executable_path/../Frameworks -o Cosmopolitan.app/Contents/MacOS/Cosmopolitan $(find Sources -name '*.swift' | sort)
+swiftc -parse-as-library -O -g -import-objc-header Sources/Native/cosmo_native.h -F Sparkle -framework Sparkle -Xlinker -rpath -Xlinker @executable_path/../Frameworks -lc++ -o Cosmopolitan.app/Contents/MacOS/Cosmopolitan $(find Sources -name '*.swift' | sort) build/avxscan.o
 dsymutil Cosmopolitan.app/Contents/MacOS/Cosmopolitan -o Cosmopolitan.app.dSYM 2>/dev/null
 strip -S Cosmopolitan.app/Contents/MacOS/Cosmopolitan 2>/dev/null   # app stays small; symbols live in the dSYM
 PUBKEY=$(cat Sparkle/public-key.txt 2>/dev/null); FEED=${COSMO_FEED_URL:-https://cyber-prinzesse.github.io/Cosmopolitan/appcast.xml}

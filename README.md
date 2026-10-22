@@ -32,6 +32,7 @@ GOG and Epic imports (GOG Galaxy installs fine inside a bottle; Epic needs the L
 - `Sources/Core/` — paths, environment, licensing gate, drivers, PE parsing, shell helpers
 - `Sources/Model/` — the `Model` class (state, bottles, processes, launching)
 - `Sources/Features/` — one file per feature, each an `extension Model` (launch check, anti-cheat, community data, D3DMetal, troubleshoot, triage, updates, snapshots, AVX, imports, …)
+- `Sources/Native/` — C++ module linked into the app (x86-64 instruction decoder for AVX / AVX-512 detection); `cosmo_native.h` is the bridging header
 - `Sources/UI/` — `ContentView` and one file per sheet under `UI/Sheets/`
 - `Sources/App/` — entry point, Sparkle updater, command-line modes
 - `scripts/build.sh` (app + dSYM), `scripts/release.sh` (zip, symbols, signed appcast, GitHub release), `scripts/dist.sh` (offline bundle without D3DMetal)

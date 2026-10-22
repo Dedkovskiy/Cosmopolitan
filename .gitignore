@@ -1,4 +1,5 @@
 # Build output
+build/
 Cosmopolitan.app/
 Cosmopolitan.app.dSYM/
 dist/
