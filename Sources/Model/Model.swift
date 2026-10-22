@@ -87,7 +87,8 @@ import SwiftUI
         watchers.forEach { $0.cancel() }; watchers = []; watchedBottle = selected
         guard !selected.isEmpty else { return }
         let c = "\(bottlesDir)/\(selected)/drive_c"
-        for dir in ["\(c)/Program Files (x86)/Steam/steamapps", "\(c)/Program Files", "\(c)/Program Files (x86)"] {
+        for d in ["\(c)/Games/Epic", "\(c)/GOG Games"] { try? FileManager.default.createDirectory(atPath: d, withIntermediateDirectories: true) }   // store targets exist so they can be watched
+        for dir in ["\(c)/Program Files (x86)/Steam/steamapps", "\(c)/Program Files", "\(c)/Program Files (x86)", "\(c)/Games/Epic", "\(c)/GOG Games"] {
             let fd = open(dir, O_EVTONLY); guard fd >= 0 else { continue }
             let src = DispatchSource.makeFileSystemObjectSource(fileDescriptor: fd, eventMask: .write, queue: .main)
             src.setEventHandler { [weak self] in
