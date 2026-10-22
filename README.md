@@ -25,7 +25,7 @@ latter, the app points to cloud gaming.
 
 ## Not built (and why)
 
-GOG and Epic imports (GOG Galaxy installs fine inside a bottle; Epic needs the Legendary backend and an account), SteamGridDB art (needs an API key; Steam's own CDN art is used instead), DualSense haptics (SDL gives XInput, no haptics path under Wine), cloud-save sync (Steam Cloud already works inside Steam), backend benchmarking and fps history (no frame-rate source outside the Metal HUD), Discord Rich Presence bridge, replay clips, mod manager, shared multi-user libraries, forced US keyboard layout (Wine's Mac driver has no such switch).
+GOG and Epic imports (GOG Galaxy installs fine inside a bottle; Epic needs the Legendary backend and an account), SteamGridDB art (needs an API key; Steam's own CDN art is used instead), DualSense haptics (SDL gives XInput, no haptics path under Wine), cloud-save sync (Steam Cloud already works inside Steam), backend benchmarking and fps history (no frame-rate source outside the Metal HUD), Discord Rich Presence bridge, replay clips, mod manager, shared multi-user libraries. (The US-keyboard-layout fix is done outside Wine: the app selects the macOS US layout while a game runs and restores yours afterwards.)
 
 ## Layout
 

@@ -21,6 +21,7 @@ extension Model {
     # DRIVERS=dxmt,d9vk             driver set for this program (overrides Auto)
     # LANG=ja_JP.UTF-8              run in another locale; ja/zh/ko also install matching fonts
     # MOUSE_CAPTURE=1               keep the cursor inside the game window (camera-heavy games)
+    # US_KEYBOARD=1                 switch macOS to the US layout while this game runs (automatic for Cyrillic & other non-Latin layouts; 0 = never)
     # FOCUS_SHORTCUT=Gaming         run this macOS Shortcut when the game starts and when it exits
     # PAUSE_IN_BACKGROUND=1         suspend the game while another app is in front (single-player only)
     # ROSETTA_ADVERTISE_AVX=0       force AVX off/on for this program (auto-detected otherwise)
