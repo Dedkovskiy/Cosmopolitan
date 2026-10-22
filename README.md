@@ -47,7 +47,12 @@ latter, the app points to cloud gaming.
 
 ## Not built (and why)
 
-GOG and Epic imports (GOG Galaxy installs fine inside a bottle; Epic needs the Legendary backend and an account), SteamGridDB art (needs an API key; Steam's own CDN art is used instead), Discord Rich Presence bridge. DualSense adaptive triggers are not possible under Wine (games speak XInput; rumble works through SDL). Several spec items are built on the Mac side instead of inside Wine: US keyboard layout (macOS input source switched per game), cloud saves (iCloud Drive mirror for non-Steam programs), benchmarking and fps history (Metal HUD read with on-device text recognition), replay clips (rolling system recorder + hotkeys), shared multi-user bottles (/Users/Shared), mods (overlay with backups).
+- **SteamGridDB art**: needs a personal API key; Steam's own CDN art is used instead.
+- **Discord Rich Presence bridge**: not built yet.
+- **DualSense adaptive triggers**: not possible under Wine for XInput games; rumble works through SDL, and games with native DualSense support can get the real pad per game (Options `DUALSENSE=native`).
+- **GOG Galaxy's Windows client**: its Qt 6 interface stays blank under every Direct3D layer available on macOS. Stores… opens or installs GOG's native Mac client instead, and Windows-only GOG games install into the bottle through lgogdownloader.
+
+Built on the Mac side instead of inside Wine: US keyboard layout (macOS input source switched per game), cloud saves (iCloud Drive mirror for non-Steam programs), benchmarking and fps history (Metal HUD read with on-device text recognition), replay clips (rolling system recorder + hotkeys), shared multi-user bottles (/Users/Shared), mods (overlay with backups).
 
 ## Layout
 
