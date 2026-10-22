@@ -28,34 +28,31 @@ struct ContentView: View {
                     TextField("new bottle", text: $newName)
                     Button("Create") { m.createBottle(newName); newName = "" }.disabled(newName.isEmpty || m.busy)
                 }
-                HStack {
-                    Button("Backup") { m.backupBottle() }.disabled(m.selected.isEmpty || m.busy)
-                    Button("Archive") { m.archiveBottle() }.disabled(m.selected.isEmpty || m.busy)
-                    Button("Restore") { m.restoreBottle() }.disabled(m.busy)
-                    Button("Delete…", role: .destructive) { confirmDelete = true }.disabled(m.selected.isEmpty || m.busy)
-                }
-                HStack {
-                    Button("Snapshots…") { showSnaps = true }.controlSize(.small).disabled(m.selected.isEmpty)
-                        .help("APFS clones taken before Repair, runtime installs, overrides and access changes. Roll back in seconds.")
-                    Button("Import…") { showImport = true }.controlSize(.small)
-                        .help("Bring in bottles from Whisky, CrossOver or Sikarugir wrappers as APFS clones. Originals are never modified.")
-                    Button("Share with other users") { m.shareBottle() }.controlSize(.small).disabled(m.selected.isEmpty || m.busy)
-                        .help("Moves the bottle to /Users/Shared and links it back; other macOS users get it in their list, each with their own saves.")
-                    Menu("Move to drive…") {   // §8.4 external drives: copies the bottle, leaves a link; hides while unplugged
+                // Whole-bottle actions, rarely needed: one menu instead of eight buttons.
+                Menu("Manage bottle") {
+                    Button("Snapshots…") { showSnaps = true }.disabled(m.selected.isEmpty)
+                    Button("Back up") { m.backupBottle() }.disabled(m.selected.isEmpty || m.busy)
+                    Button("Archive to a file") { m.archiveBottle() }.disabled(m.selected.isEmpty || m.busy)
+                    Button("Restore from a file…") { m.restoreBottle() }.disabled(m.busy)
+                    Button("Import from Whisky / CrossOver / Sikarugir…") { showImport = true }
+                    Divider()
+                    Button("Share with other Mac users") { m.shareBottle() }.disabled(m.selected.isEmpty || m.busy)
+                    Menu("Move to external drive") {   // §8.4 copies the bottle, leaves a link; hides while unplugged
                         let vols = m.externalVolumes()
                         if vols.isEmpty { Text("No writable external drive connected") }
                         ForEach(vols, id: \.self) { v in Button((v as NSString).lastPathComponent) { m.moveBottle(to: v) } }
-                    }.controlSize(.small).frame(width: 118).disabled(m.selected.isEmpty || m.busy)
-                }
-                HStack {
+                    }.disabled(m.selected.isEmpty || m.busy)
+                    Divider()
                     // Kernel anti-cheat (Call of Duty, Valorant, Fortnite…) can't run on a Mac in any form; the anti-cheat runs on the streaming server instead.
-                    Button("Cloud…") {
+                    Button("Play anti-cheat games in the cloud…") {
                         if let gfn = ["/Applications/GeForceNOW.app", "/Applications/NVIDIA GeForce NOW.app"].first(where: { FileManager.default.fileExists(atPath: $0) }) { NSWorkspace.shared.open(URL(fileURLWithPath: gfn)) }
                         else { NSWorkspace.shared.open(URL(string: "https://play.geforcenow.com")!) }
                         NSWorkspace.shared.open(URL(string: "https://www.xbox.com/play")!)
                         m.log += "Cloud: GeForce NOW (own the game on Battle.net/Steam) and Xbox Cloud Gaming (Game Pass Ultimate) stream Call of Duty to this Mac; the DualSense works over Bluetooth.\n"
-                    }.controlSize(.small).help("Anti-cheat games (Call of Duty, Valorant, Fortnite) via GeForce NOW or Xbox Cloud Gaming.")
-                }
+                    }
+                    Divider()
+                    Button("Delete bottle…", role: .destructive) { confirmDelete = true }.disabled(m.selected.isEmpty || m.busy)
+                }.fixedSize()
                 Divider()
                 Text("Automatic").font(.headline)
                 Text("Windows version per program · drivers per program · runtimes and community fixes on launch · Steam starts with the app · msync · 60 fps cap and lighter rendering while on battery")
