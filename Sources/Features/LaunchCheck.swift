@@ -41,7 +41,8 @@ extension Model {
             // Installer stubs (NSIS/Inno: SteamSetup.exe, …) carry old-looking headers but install modern software that refuses Windows 98.
             let installer = exe.contains("/installers/") || ["setup", "install"].contains(where: { name.lowercased().contains($0) })
             if installer { break }
-            if (era.subsystem > 0 && era.subsystem <= 4 && msvc) || imps.contains("ddraw.dll") { desktop = true; winver = "win98"; parts.append("Windows 9x-era program — 1280x960 virtual desktop, Retina off") }
+            // 64-bit builds postdate Windows 9x, so only 32-bit programs can be 9x-era.
+            if is32, (era.subsystem > 0 && era.subsystem <= 4 && msvc) || imps.contains("ddraw.dll") { desktop = true; winver = "win98"; parts.append("Windows 9x-era program — 1280x960 virtual desktop, Retina off") }
             else if era.subsystem == 5 && (6...9).contains(era.linker) { winver = "winxp"; parts.append("XP-era program") }   // VC6–VC2008 builds
         }
         if template == "auto", !winver.isEmpty { parts.append("reports Windows as \(winver)") }
@@ -101,7 +102,7 @@ extension Model {
         n.note = imps.isEmpty && parts.isEmpty ? "" : "Launch check \(name): " + (imps.isEmpty ? "" : "\(imps.count) DLLs") + (parts.isEmpty ? ", all available" : (imps.isEmpty ? "" : " — ") + parts.joined(separator: "; ")) + "\n"
         n.verbs = winetricks == nil ? [] : verbs
         // Tile light: red = will not start as is, yellow = starts after automatic work or with a caveat, green = ready.
-        let red = !unknown.isEmpty || (!verbs.isEmpty && winetricks == nil) || n.anticheat?.0 == .red || !plan.missing.isEmpty || parts.contains { $0.contains("not installed") || $0.contains("brew install") || $0.contains("accept Apple's license") }
+        let red = !unknown.isEmpty || (!verbs.isEmpty && winetricks == nil) || n.anticheat?.0 == .red || !plan.missing.isEmpty || parts.contains { $0.contains("brew install") || $0.contains("accept Apple's license") }
         let yellow = !verbs.isEmpty || drivers != nil || desktop || n.anticheat != nil || parts.contains { $0.contains("ProtonDB silver") || $0.contains("ProtonDB bronze") || $0.contains("ProtonDB borked") || $0.contains("ProtonDB pending") }
         n.status = red ? .red : yellow ? .yellow : .green
         return n
