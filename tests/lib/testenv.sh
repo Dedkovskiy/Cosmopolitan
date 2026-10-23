@@ -75,7 +75,7 @@ _tw_state() {
     [[ -d "$b/options" ]] && print "  options-settings $(cd "$b/options" && find . -type f -name '*.env' -print0 | sort -z | xargs -0 shasum -a 256 2>/dev/null | shasum -a 256 | cut -c1-16)"
   done
   if [[ -f "$REAL_LOG" ]]; then print "log-inode: $(stat -f %i "$REAL_LOG")"; fi
-  print "steam-pid: $(pgrep -f 'Steam.steam\.exe' | head -1)"
+  print "steam-pid: $(_tw_real_steam)"
   print "app-pid: $(pgrep -f "$TESTENV_REPO/Cosmopolitan.app/Contents/MacOS/Cosmopolitan\$" | head -1)"
 }
 # Cache markers your running Cosmopolitan app updates by itself (scan results, playtime, AVX counts, the registry ledger), one per file;
@@ -94,7 +94,10 @@ tw_snapshot() {
 #   can't have written them) — except keys Cosmopolitan owns (AppDefaults, DllOverrides, the ledger's keys), which always fail.
 # Whether your own Cosmopolitan app or your Steam is running (TW_FAKE_APP / TW_FAKE_STEAM = 0/1 override them, for the rule test only).
 _tw_app_running() { [[ -n "${TW_FAKE_APP:-}" ]] && { [[ "$TW_FAKE_APP" == 1 ]]; return; }; [[ -n "$(pgrep -f "$TESTENV_REPO/Cosmopolitan.app/Contents/MacOS/Cosmopolitan\$|/Applications/Cosmopolitan.app/Contents/MacOS/Cosmopolitan\$")" ]]; }
-_tw_steam_running() { [[ -n "${TW_FAKE_STEAM:-}" ]] && { [[ "$TW_FAKE_STEAM" == 1 ]]; return; }; [[ -n "$(pgrep -f 'Steam.steam\.exe')" ]]; }
+_tw_steam_running() { [[ -n "${TW_FAKE_STEAM:-}" ]] && { [[ "$TW_FAKE_STEAM" == 1 ]]; return; }; [[ -n "$(_tw_real_steam)" ]]; }
+# Your Steam: a steam.exe whose working folder is inside your real bottles (Wine keeps it on the Windows current directory), never a
+# stand-in Steam a test runs in a throwaway bottle.
+_tw_real_steam() { local p; for p in $(pgrep -f 'Steam.steam\.exe'); do [[ "$(lsof -a -p $p -d cwd -Fn 2>/dev/null | sed -n 's/^n//p')" == "$REAL_SUPPORT/bottles/"* ]] && print $p; done | sort -n | head -1; }
 tw_check() {
   emulate -L zsh
   local ok=1 now="$(_tw_state)" keys="$(_tw_regkeys)"
@@ -133,7 +136,9 @@ tw_sandbox_profile() {
 testenv_cleanup() {
   emulate -L zsh
   [[ -n "${T:-}" && "$T" == /private/tmp/cosmotest.* ]] || return 0
-  for b in "$TS"/bottles/*(N/); do WINEPREFIX="$b" "$TS/engines/$ENGINE/wswine.bundle/bin/wineserver" -k 2>/dev/null; done
+  local ws="$TS/engines/$ENGINE/wswine.bundle/bin/wineserver" b
+  for b in "$TS"/bottles/*(N/); do WINEPREFIX="$b" "$ws" -k 2>/dev/null; done
+  for b in "$TS"/bottles/*(N/); do WINEPREFIX="$b" perl -e 'alarm 30; exec @ARGV' -- "$ws" -w 2>/dev/null; done   # gone before the folder is
   rm -rf "$T"
 }
 # pid of the wineserver serving a throwaway prefix (it holds /tmp/.wine-<uid>/server-<dev>-<ino>/lock), empty if none
