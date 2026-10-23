@@ -473,6 +473,8 @@ Each item has its own commit and test (`tests/safety/<name>.sh`, all in `tests/r
 
 **38 Nightly self-test.** `tests/nightly.sh` runs `tests/run-all.sh` (throwaway homes, isolation guard, sandbox, tripwire) and reports only failures: a notification and the log in `~/Library/Logs/Cosmopolitan self-test/`. `scripts/install-nightly.sh` installs the LaunchAgent `local.cosmopolitan.selftest` (04:00, low priority); `--uninstall` removes it.
 
+**REDprelauncher games (The Witcher 3, Cyberpunk 2077).** The tile's program is CD Projekt's prelauncher; `launcher-configuration.json` names the real game, which the launch check inspects with its own folder's DLLs (The Witcher 3's DirectX 12 build loads Direct3D 12 through NVIDIA Streamline, so only the DLLs beside it show it: D3DMetal). Play adds `--launcher-skip` (and `-dx12`/`-dx11` for the configured build): REDlauncher's Qt Quick window can't get an OpenGL context under this Wine although plain OpenGL 2.1 works, and the prelauncher clears Qt's environment variables, so the launcher can't be helped from outside; it isn't needed to play. Sikarugir's Wine carries CrossOver's rewrite of `…\bin\x64_dx12\witcher3.exe` to `…\bin\x64\witcher3.exe` (the DirectX 11 build, gone from the current DirectX 12-only game): when the engine has that rule and `bin\x64` doesn't exist, Play links `bin\x64` → `x64_dx12` after a snapshot (delete the link to undo).
+
 ## Sources
 
 **Apple Read Me files** (primary sources on this Mac, quoted verbatim above):

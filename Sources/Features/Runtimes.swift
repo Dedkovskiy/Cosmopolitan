@@ -15,6 +15,15 @@ extension Model {
         if n & UInt32(COSMO_NEED_VCREDIST64) != 0 { return .vcredist64 }
         return n & UInt32(COSMO_NEED_DIRECTX) != 0 ? .directx : nil
     }
+    // CD Projekt's launcher file: the configured game (the "fallback" entry, else the first) and the flag REDprelauncher takes for it.
+    nonisolated static func redGame(_ dir: String) -> (exe: String, flag: String)? {
+        guard let d = FileManager.default.contents(atPath: dir + "/launcher-configuration.json"), let j = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any],
+              let list = j["executables"] as? [[String: Any]] else { return nil }
+        let pick = list.first { ($0["description"] as? String) == (j["fallback"] as? String) } ?? list.first
+        guard let e = pick?["executable"] as? [String: Any], let p = e["directoryPath"] as? String, let f = e["fileName"] as? String else { return nil }
+        let exe = dir + "/" + p.replacingOccurrences(of: "\\", with: "/") + "/" + f, desc = pick?["description"] as? String ?? ""
+        return FileManager.default.fileExists(atPath: exe) ? (exe, desc.contains("DirectX 12") ? "-dx12" : desc.contains("DirectX 11") ? "-dx11" : "") : nil
+    }
     // Item 28: the imports of the DLLs beside a program (its folder, top level, at most 64): an engine DLL can import Direct3D or a runtime
     // the exe itself doesn't. They only add graphics APIs and runtimes, never "missing DLLs" (an unused plugin may import anything).
     nonisolated static func besideImports(_ dir: String) -> Set<String> {

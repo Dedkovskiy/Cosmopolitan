@@ -68,11 +68,27 @@ extension Model {
         start(need, cmd, args, exe: exe, restartSteam: steamGames[exe] != nil && (need.drivers != nil || !need.env.isEmpty || need.restartSteam) && steamRunning())
     }
 
+    // Sikarugir's Wine (CrossOver's table in kernelbase.dll) starts …\bin\x64\witcher3.exe, the DirectX 11 build, whenever
+    // …\bin\x64_dx12\witcher3.exe is asked for; the game is DirectX 12 only now, so that start fails. bin\x64 → x64_dx12 makes it the same game.
+    func linkWitcherRewrite(_ game: String, _ name: String) {
+        let d11 = ((game as NSString).deletingLastPathComponent as NSString).deletingLastPathComponent + "/x64", fm = FileManager.default
+        guard game.lowercased().hasSuffix("/bin/x64_dx12/witcher3.exe"), (try? fm.attributesOfItem(atPath: d11)) == nil, Model.engineRewritesWitcher else { return }
+        snapshot("before linking bin\\x64 to x64_dx12 for \(name)")
+        if (try? fm.createSymbolicLink(atPath: d11, withDestinationPath: "x64_dx12")) != nil {
+            log += "\(name): this engine starts bin\\x64\\witcher3.exe (the DirectX 11 build) instead of bin\\x64_dx12, which this install doesn't have; bin\\x64 now links to x64_dx12 (delete the link to undo).\n"
+        }
+    }
+    nonisolated static let engineRewritesWitcher: Bool = {
+        let k = (wineBin as NSString).deletingLastPathComponent + "/../lib/wine/x86_64-windows/kernelbase.dll"
+        return (FileManager.default.contents(atPath: k) ?? Data()).range(of: "\\bin\\x64_dx12\\witcher3.exe".data(using: .utf16LittleEndian)!) != nil
+    }()
+
     // Launch check + the registry it implies (overrides, old-era desktop, Windows version). Returns what start() needs.
     func prepare(_ exe: String) -> Needs {
         var need = launchNeeds(exe)
         need.restartSteam = ensureControllerMode(for: exe)   // DualSense native ⇄ XInput: bus-wide, so Steam must restart when it changes
         log += need.note
+        if let red = Model.redGame((exe as NSString).deletingLastPathComponent) { linkWitcherRewrite(red.exe, appName(exe)) }
         // Community DLL overrides go into the bottle registry (idempotent, same place protonfixes puts them).
         // Every value goes through the registry ledger, so it can be removed again when the setting that wanted it is gone.
         let e = (exe as NSString).lastPathComponent, b = selected

@@ -9,6 +9,11 @@ extension Model {
             var n = Needs(drivers: nil, verbs: [], note: "Launch check \(name): unreadable executable (damaged or truncated file)\n"); n.status = .red; return n
         }
         var imps = exeImports(exe)
+        // CD Projekt's REDprelauncher (The Witcher 3, Cyberpunk 2077): launcher-configuration.json names the real game. Inspect that one, with
+        // its own folder's DLLs (they show Direct3D 12), and start it with --launcher-skip: REDlauncher's Qt window can't get an OpenGL
+        // context here, and the prelauncher clears Qt's environment variables, so the launcher can't be helped from outside.
+        let cdpr = Model.redGame(dir), adir = cdpr.map { ($0.exe as NSString).deletingLastPathComponent } ?? dir
+        if let cdpr { imps = exeImports(cdpr.exe) }
         // Unreal games ship a tiny bootstrap exe; the real one is <Game>/Binaries/Win64/<Game>-Win64-Shipping.exe. Inspect that instead.
         if !imps.contains(where: { $0.hasPrefix("d3d") || $0 == "vulkan-1.dll" || $0 == "opengl32.dll" }), fm.fileExists(atPath: dir + "/Engine"),   // Unreal install root only
            let en = fm.enumerator(atPath: dir), let real = en.compactMap({ $0 as? String }).first(where: { $0.lowercased().hasSuffix("-shipping.exe") || ($0.contains("/Binaries/Win64/") && $0.lowercased().hasSuffix(".exe") && !$0.hasPrefix("Engine/")) }) {
@@ -21,8 +26,8 @@ extension Model {
                 if p.hasSuffix("D3D12/D3D12Core.dll") { imps.append("d3d12.dll"); break }
             }
         }
-        let beside = Model.besideImports(dir).subtracting(imps)   // item 28: what the DLLs next to it import
-        let local = Set(((try? fm.contentsOfDirectory(atPath: dir)) ?? []).map { $0.lowercased() })
+        let beside = Model.besideImports(adir).subtracting(imps)   // item 28: what the DLLs next to it import
+        let local = Set(((try? fm.contentsOfDirectory(atPath: adir)) ?? []).map { $0.lowercased() })
         let sys = Set(((try? fm.contentsOfDirectory(atPath: "\(bottlesDir)/\(bottle)/drive_c/windows/system32")) ?? []).map { $0.lowercased() })
         let missing = imps.filter { !$0.hasPrefix("api-ms-") && !$0.hasPrefix("ext-ms-") && !builtinDLLs.contains($0) && !local.contains($0) && !sys.contains($0) }
         // A builtin Wine DLL only loads if its stub file exists in system32 (64-bit) / syswow64 (32-bit). If something deleted the stub
@@ -112,6 +117,7 @@ extension Model {
         else if avxCount(exe) == nil, era.kind == "pe" { parts.append("AVX scan pending") }
         // Per-program options (right-click → Options…): ARGS, DRIVERS, any other KEY=VALUE becomes environment. They win over detection.
         let o = options(exe)
+        if let cdpr { n.args += ["--launcher-skip"] + (cdpr.flag.isEmpty ? [] : [cdpr.flag]); parts.append("starts \((cdpr.exe as NSString).lastPathComponent) without REDlauncher") }
         if let a = o["ARGS"], !a.isEmpty { n.args += a.split(separator: " ").map(String.init) }
         if let d = o["DRIVERS"], !d.isEmpty { drivers = d.split(separator: ",").map(String.init); n.drivers = drivers }
         for (k, v) in o where !["ARGS", "DRIVERS", "FOCUS_SHORTCUT", "PAUSE_IN_BACKGROUND", "MOUSE_CAPTURE"].contains(k) { n.env[k] = v }
