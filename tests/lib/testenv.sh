@@ -3,8 +3,10 @@
 #   ct ARGS…        the test build (bundle id local.cosmopolitan.test → its own settings) with a throwaway home (HOME, CFFIXED_USER_HOME
 #                   and COSMO_TEST_HOME all point at it, so the app's support folder, bottles and log live there)
 #   tw_snapshot / tw_check   tripwire over YOUR real data: bottles folder, Cosmopolitan log, Steam bottle, running Steam and app
+#                   (content hashes via tests/lib/tw.py; notes and failures name the changed files, and the keys for .reg files)
 #   testenv_cleanup  stops the throwaway prefixes' wineservers and removes the throwaway folder
 # Nothing here writes outside the throwaway folder. The engine and backends are APFS clones (no extra disk space).
+# testenv_init proves the sandbox on your real files every time it runs (see below). Safe under set -u.
 
 zmodload zsh/datetime   # EPOCHREALTIME, for timing every wait
 TESTENV_REPO="${${(%):-%x}:A:h:h:h}"
@@ -21,7 +23,7 @@ testenv_init() {
   cp -cR "$TESTENV_REPO/Cosmopolitan.app" "$T/CosmopolitanTest.app"
   /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier local.cosmopolitan.test" -c "Set :CFBundleName CosmopolitanTest" "$T/CosmopolitanTest.app/Contents/Info.plist"
   codesign --force --deep --sign - "$T/CosmopolitanTest.app" 2>/dev/null
-  if [[ -z "$TESTENV_NO_ENGINE" ]]; then   # a --setup test wants an empty support folder
+  if [[ -z "${TESTENV_NO_ENGINE:-}" ]]; then   # a --setup test wants an empty support folder
     cp -cR "$REAL_SUPPORT/engines/$ENGINE" "$REAL_SUPPORT/engines/renderer" "$TS/engines/" 2>/dev/null
     [[ -d "$REAL_SUPPORT/engines/gstreamer" ]] && cp -cR "$REAL_SUPPORT/engines/gstreamer" "$TS/engines/"
     local bin="$TS/engines/$ENGINE/wswine.bundle/bin" f
@@ -30,6 +32,12 @@ testenv_init() {
     [[ -f "$REAL_SUPPORT/d3dmetal-license.json" ]] && cp "$REAL_SUPPORT/d3dmetal-license.json" "$TS/"
   fi
   mkdir -p "$TS/cache"; for f in "$TESTENV_REPO"/.cache/*(N.) "$REAL_SUPPORT"/cache/*(N.); do cp -c "$f" "$TS/cache/" 2>/dev/null; done   # pinned downloads (hash-checked on use)
+  # Sandbox proof, at the start of every suite run: opening your real log and every bottle's user.reg for writing is refused inside the
+  # test sandbox (the probe appends zero bytes, so even a failed proof changes nothing), and the same probe works in the throwaway folder.
+  local probe=() p; [[ -f "$REAL_LOG" ]] && probe+=("$REAL_LOG"); probe+=("$REAL_SUPPORT"/bottles/*/user.reg(N.))
+  for p in $probe; do sandbox-exec -p "$(tw_sandbox_profile)" /bin/sh -c ': >> "$1"' sh "$p" 2>/dev/null && { print -u2 "FAIL: sandbox proof: a write to $p was allowed"; return 1; }; done
+  sandbox-exec -p "$(tw_sandbox_profile)" /bin/sh -c ': >> "$1"' sh "$T/sandbox-probe" || { print -u2 "FAIL: sandbox proof: the probe can't write in the throwaway folder either"; return 1; }
+  print -u2 "ok: sandbox proof: writes refused for ${#probe} real files (${(j:, :)${probe[@]#$REAL_HOME/}}), allowed in the throwaway folder"
   print "test env: $T"
 }
 
@@ -68,22 +76,26 @@ _tw_state() {
   print "steam-pid: $(pgrep -f 'Steam.steam\.exe' | head -1)"
   print "app-pid: $(pgrep -f "$TESTENV_REPO/Cosmopolitan.app/Contents/MacOS/Cosmopolitan\$" | head -1)"
 }
-# Cache markers your running Cosmopolitan app updates by itself (scan results, playtime, AVX counts, the registry ledger).
-_tw_markers() { emulate -L zsh; for b in "$REAL_SUPPORT"/bottles/*(N/); do [[ -d "$b/options" ]] && print "$b:t $(cd "$b/options" && find . -type f ! -name '*.env' -print0 | sort -z | xargs -0 shasum -a 256 2>/dev/null | shasum -a 256 | cut -c1-16)"; done; }
-_tw_regs() { emulate -L zsh; for b in "$REAL_SUPPORT"/bottles/*(N/); do for r in system user userdef; do [[ -f "$b/$r.reg" ]] && print "$b:t/$r.reg $(shasum -a 256 "$b/$r.reg" | cut -c1-16)"; done; done; }
+# Cache markers your running Cosmopolitan app updates by itself (scan results, playtime, AVX counts, the registry ledger), one per file;
+# and every key of your bottles' .reg files, flagged when Cosmopolitan owns it. Both are content hashes (tests/lib/tw.py).
+_tw_markers() { [[ -d "$REAL_SUPPORT/bottles" ]] && python3 -I "$TESTENV_REPO/tests/lib/tw.py" markers "$REAL_SUPPORT/bottles"; }
+_tw_regkeys() { [[ -d "$REAL_SUPPORT/bottles" ]] && python3 -I "$TESTENV_REPO/tests/lib/tw.py" regkeys "$REAL_SUPPORT/bottles"; }
+# Lines "owned<TAB>file<TAB>[key]" (sorted by file) → "  file: [key], [key]"
+_tw_keylist() { awk -F'\t' '$2 != f { if (f != "") print "  " f ": " ks; f = $2; ks = $3; next } { ks = ks ", " $3 } END { if (f != "") print "  " f ": " ks }'; }
 tw_snapshot() {
-  TW_STATE="$(_tw_state)"; TW_REGS="$(_tw_regs)"; TW_MARKERS="$(_tw_markers)"
+  TW_STATE="$(_tw_state)"; TW_REGKEYS="$(_tw_regkeys)"; TW_MARKERS="$(_tw_markers)"
   TW_LOG_SIZE=$( [[ -f "$REAL_LOG" ]] && stat -f %z "$REAL_LOG" || print 0 )
   TW_LOG_HEAD=$( [[ -f "$REAL_LOG" ]] && head -c "$TW_LOG_SIZE" "$REAL_LOG" | shasum -a 256 | cut -c1-16 )
 }
-# tw_check [sandboxed]: fails on any change to your data. A .reg change is attributed to your running Steam only when the test ran
-# sandboxed (writes to your Cosmopolitan folder impossible) and Steam's own wineserver is up in that bottle.
+# tw_check: fails on any change to your data, with two lenient rules, each printed as a note naming the files (and keys):
+#   cache markers changed while your Cosmopolitan app runs; registry keys changed while your Steam runs (the test is sandboxed, so it
+#   can't have written them) — except keys Cosmopolitan owns (AppDefaults, DllOverrides, the ledger's keys), which always fail.
 # Whether your own Cosmopolitan app or your Steam is running (TW_FAKE_APP / TW_FAKE_STEAM = 0/1 override them, for the rule test only).
-_tw_app_running() { [[ -n "$TW_FAKE_APP" ]] && { [[ "$TW_FAKE_APP" == 1 ]]; return; }; [[ -n "$(pgrep -f "$TESTENV_REPO/Cosmopolitan.app/Contents/MacOS/Cosmopolitan\$|/Applications/Cosmopolitan.app/Contents/MacOS/Cosmopolitan\$")" ]]; }
-_tw_steam_running() { [[ -n "$TW_FAKE_STEAM" ]] && { [[ "$TW_FAKE_STEAM" == 1 ]]; return; }; [[ -n "$(pgrep -f 'Steam.steam\.exe')" ]]; }
+_tw_app_running() { [[ -n "${TW_FAKE_APP:-}" ]] && { [[ "$TW_FAKE_APP" == 1 ]]; return; }; [[ -n "$(pgrep -f "$TESTENV_REPO/Cosmopolitan.app/Contents/MacOS/Cosmopolitan\$|/Applications/Cosmopolitan.app/Contents/MacOS/Cosmopolitan\$")" ]]; }
+_tw_steam_running() { [[ -n "${TW_FAKE_STEAM:-}" ]] && { [[ "$TW_FAKE_STEAM" == 1 ]]; return; }; [[ -n "$(pgrep -f 'Steam.steam\.exe')" ]]; }
 tw_check() {
   emulate -L zsh
-  local ok=1 now="$(_tw_state)" regs="$(_tw_regs)"
+  local ok=1 now="$(_tw_state)" keys="$(_tw_regkeys)"
   [[ "$now" == "$TW_STATE" ]] || { ok=0; print "TRIPWIRE: real data changed:"; diff <(print -r -- "$TW_STATE") <(print -r -- "$now") | sed 's/^/  /'; }
   if [[ -f "$REAL_LOG" ]]; then
     local size=$(stat -f %z "$REAL_LOG") head=$(head -c "$TW_LOG_SIZE" "$REAL_LOG" | shasum -a 256 | cut -c1-16)
@@ -91,15 +103,22 @@ tw_check() {
   fi
   local markers="$(_tw_markers)"
   if [[ "$markers" != "$TW_MARKERS" ]]; then
+    local files="$(diff <(print -r -- "$TW_MARKERS") <(print -r -- "$markers") | sed -n 's/^[<>] [0-9a-z]*  //p' | sort -u | sed 's/^/  /')"
     if _tw_app_running; then
-      print "note: cache markers in your bottle's options folder changed while your Cosmopolitan app was running (it updates them itself; the test build can't reach them)"
-    else ok=0; print "TRIPWIRE: cache markers in your bottle's options folder changed with no Cosmopolitan app running"; fi
+      print "note: cache markers in your bottles' options folders changed while your Cosmopolitan app was running (it updates them itself; the test build can't reach them):"
+    else ok=0; print "TRIPWIRE: cache markers in your bottles' options folders changed with no Cosmopolitan app running:"; fi
+    print -r -- "$files"
   fi
-  if [[ "$regs" != "$TW_REGS" ]]; then
-    if _tw_steam_running; then   # ct and twine are sandboxed, so the test couldn't have written them
-      print "note: registry files changed while your Steam was running; the test could not write there (sandboxed), so Steam's own Wine server wrote them:"
-      diff <(print -r -- "$TW_REGS") <(print -r -- "$regs") | grep '^[<>]' | sed 's/^/  /'
-    else ok=0; print "TRIPWIRE: registry files of your bottles changed:"; diff <(print -r -- "$TW_REGS") <(print -r -- "$regs") | sed 's/^/  /'; fi
+  if [[ "$keys" != "$TW_REGKEYS" ]]; then   # changed keys (in $REAL_SUPPORT/bottles), each once, owned first if its flag differs
+    local changed="$(diff <(print -r -- "$TW_REGKEYS") <(print -r -- "$keys") | sed -n 's/^[<>] //p' | awk -F'\t' '{print $4 "\t" $1 "\t" $2}' | sort -t$'\t' -k2,2 -k3,3 -k1,1r | awk -F'\t' '!seen[$2 FS $3]++')"
+    local owned="$(print -r -- "$changed" | grep '^1')" other="$(print -r -- "$changed" | grep '^0')"
+    if [[ -n "$owned" ]]; then ok=0; print "TRIPWIRE: registry keys Cosmopolitan owns changed (this fails even while Steam runs):"; print -r -- "$owned" | _tw_keylist; fi
+    if [[ -n "$other" ]]; then
+      if _tw_steam_running; then   # ct and twine are sandboxed, so the test couldn't have written them
+        print "note: registry keys changed while your Steam was running; the test could not write there (sandboxed), so Steam's own Wine server wrote them:"
+      else ok=0; print "TRIPWIRE: registry keys of your bottles changed (Steam not running):"; fi
+      print -r -- "$other" | _tw_keylist
+    fi
   fi
   (( ok )) && print "tripwire: your bottles, log, Steam and app are untouched"
   (( ok ))
@@ -111,7 +130,7 @@ tw_sandbox_profile() {
 
 testenv_cleanup() {
   emulate -L zsh
-  [[ -n "$T" && "$T" == /private/tmp/cosmotest.* ]] || return 0
+  [[ -n "${T:-}" && "$T" == /private/tmp/cosmotest.* ]] || return 0
   for b in "$TS"/bottles/*(N/); do WINEPREFIX="$b" "$TS/engines/$ENGINE/wswine.bundle/bin/wineserver" -k 2>/dev/null; done
   rm -rf "$T"
 }
