@@ -9,7 +9,8 @@ extension Model {
               let dev = (a[.systemNumber] as? NSNumber)?.uint64Value, let ino = (a[.systemFileNumber] as? NSNumber)?.uint64Value else { return nil }
         let lock = String(format: "/tmp/.wine-%u/server-%llx-%llx/lock", getuid(), dev, ino)
         guard FileManager.default.fileExists(atPath: lock), let pid = Int32(shell("lsof -t '\(lock)' 2>/dev/null | head -1")) else { return nil }
-        return (pid, shell("ps -o comm= -p \(pid)"))
+        var path = [CChar](repeating: 0, count: 4096)   // PROC_PIDPATHINFO_MAXSIZE; not `ps`: it's setuid, and a sandboxed process may not exec it
+        return (pid, proc_pidpath(pid, &path, UInt32(path.count)) > 0 ? String(cString: path) : "")
     }
     func regSection(_ file: String, _ key: String) -> String {
         let reg = (try? String(contentsOfFile: "\(bottlesDir)/\(selected)/\(file)", encoding: .utf8)) ?? ""
