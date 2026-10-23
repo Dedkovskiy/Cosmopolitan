@@ -3,6 +3,7 @@
 # throwaway home or with a home inside your real one, and a full --setup run must leave your data untouched. Checksums of your
 # bottles folder, log and Steam bottle are compared before and after. The run is also sandboxed, so any attempt to write into your
 # real Cosmopolitan folders, log or Sikarugir folder fails loudly instead of happening.
+unset COSMO_ENGINE COSMO_ENGINE_DIR   # first-run setup installs the pinned engine, whatever engine a trial run is testing
 source "${0:A:h}/../lib/testenv.sh"; TESTENV_NO_ENGINE=1 testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
 fail() { print "FAIL: $*"; exit 1; }
 BIN="$T/CosmopolitanTest.app/Contents/MacOS/Cosmopolitan"

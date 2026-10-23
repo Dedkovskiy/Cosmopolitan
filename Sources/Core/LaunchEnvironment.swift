@@ -45,11 +45,29 @@ func launchEnv(_ bottle: String, drivers: [String]? = nil) -> [String: String] {
     // Upstream DXVK can't run on Metal; the Sikarugir DXVK builds here can.
     // Only the engine's per-slot variables, never plain WINEDLLPATH: tried 2026-10-22, it made DXMT's dxgi/d3d11 the builtin for every
     // process including steamwebhelper (which must stay on Wine's own D3D) → "Steamwebhelper is not responding".
+    // Engines without Sikarugir's slots (Highball's Wine 11, GPTK-style) take the same folders as one WINEDLLPATH_PREPEND list.
+    let prepend = engineUsesPrepend(); var front: [String] = []
     for d in drivers ?? driverList(e, bottle: bottle) {
         guard let s = driverSlot[d], driverUsable(d) else { continue }   // a driver that can't create a device here would only crash the game
-        e["WINEDLLPATH_" + s] = bottleDriverDir(bottle, d) + "/wine"   // loaded per launch from the bottle's own drivers/ folder; never copied into system32
+        let dir = bottleDriverDir(bottle, d) + "/wine"   // loaded per launch from the bottle's own drivers/ folder; never copied into system32
+        if prepend { front.append(dir) } else { e["WINEDLLPATH_" + s] = dir }
         // libd3dshared dlopen()s this value as-is; the dylibs are reached through the symlinked x86_64-unix path, so @rpath can't find the framework on its own.
         if d == "d3dmetal" { e["D3DMETAL_FRAMEWORK_PATH"] = "\(driversDir)/d3dmetal/external/D3DMetal.framework/D3DMetal" }
     }
+    if !front.isEmpty { e["WINEDLLPATH_PREPEND"] = front.joined(separator: ":") }
     return e
 }
+
+// The active engine's driver hook: Sikarugir's per-slot WINEDLLPATH_<slot>, or one WINEDLLPATH_PREPEND list (from its ntdll, once per engine).
+nonisolated(unsafe) private var prependEngines: [String: Bool] = [:]
+private let prependLock = NSLock()
+func engineUsesPrepend() -> Bool {
+    let ntdll = engineDir + "/lib/wine/x86_64-unix/ntdll.so"
+    prependLock.lock(); defer { prependLock.unlock() }
+    if let v = prependEngines[ntdll] { return v }
+    let d = FileManager.default.contents(atPath: ntdll) ?? Data()
+    let v = d.range(of: Data("WINEDLLPATH_DXMT".utf8)) == nil && d.range(of: Data("WINEDLLPATH_PREPEND".utf8)) != nil
+    prependEngines[ntdll] = v; return v
+}
+// Wine 11's layout: the real loader (with the address-space reserve) sits in lib/wine/x86_64-unix and bin/wine hands over to it.
+func engineIsWine11() -> Bool { FileManager.default.fileExists(atPath: engineDir + "/lib/wine/x86_64-unix/wine") }

@@ -28,7 +28,7 @@ before=$(ct --tree-hash "$TS/engines/renderer/dxmt" "$TS/engines/renderer/dxvk" 
 out=$(ct --update 2>&1)
 after=$(ct --tree-hash "$TS/engines/renderer/dxmt" "$TS/engines/renderer/dxvk" 2>/dev/null | grep -v '^$')
 [[ "$before" == "$after" ]] || fail "--update changed installed drivers"
-[[ "$out" != *"downloading"* && ! -e "$TH/Library/Application Support/Sikarugir/Template" && -z "$(ls "$TS/engines" | grep -v -e '^WS12WineSikarugir10.0_8$' -e '^renderer$' -e '^gstreamer$')" ]] || fail "--update downloaded something: $out"
+[[ "$out" != *"downloading"* && ! -e "$TH/Library/Application Support/Sikarugir/Template" && -z "$(ls "$TS/engines" | grep -v -e "^$ENGINE\$" -e '^renderer$' -e '^gstreamer$')" ]] || fail "--update downloaded something: $out"
 print -r -- "ok: --update only reports: $(print -r -- "$out" | grep -E '^[•✓]' | tr '\n' ' ')"
 testenv_cleanup
 

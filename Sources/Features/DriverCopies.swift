@@ -10,7 +10,10 @@ func updatePrefixIfStale(_ prefix: String) {
     let inf = (wineBin as NSString).deletingLastPathComponent + "/../share/wine/wine.inf"
     guard FileManager.default.fileExists(atPath: prefix + "/drive_c"), stamp != "disable",
           let m = (try? FileManager.default.attributesOfItem(atPath: inf))?[.modificationDate] as? Date, stamp != String(Int(m.timeIntervalSince1970)) else { return }
-    _ = shell("\(plainWine(prefix)) wineboot -u >/dev/null 2>&1")
+    // Mono and Gecko stay out of the update, as in createBottle: Cosmopolitan installs and checks Wine Mono itself, and a newer engine's
+    // wineboot otherwise wants its own newer Wine Mono and waits on that download (Wine 11 with Mono 9.4.0 in the bottle: for good).
+    // At most 5 minutes either way, then the launch goes ahead; the server isn't killed (Steam may be running in this bottle).
+    _ = shell("perl -e 'alarm 300; exec @ARGV' -- env WINEDLLOVERRIDES='mscoree,mshtml=' \(plainWine(prefix)) wineboot -u >/dev/null 2>&1")
 }
 
 extension Model {
