@@ -54,6 +54,8 @@ import SwiftUI
     @Published var driverUpdates = ""   // "dxmt v0.81 available" — filled by the weekly check, applied by Update…
     @Published var readiness: [String: Needs] = [:]   // per-program pre-verification (tile light + tooltip)
     var lastMemWarn = Date.distantPast                 // memory advisor rate limit
+    @Published var pendingSteamRestart: (bottle: String, why: String, busy: String)? = nil   // a Steam restart waiting for idle (item 24)
+    var steamWaitArmed = false
     @Published var artVersion = 0                      // bumped when cover art or playtime files change, so tiles redraw
     var pauseObservers: [NSObjectProtocol] = []        // pause-in-background observers, one per armed game
     @Published var showSetup = false           // first-run setup sheet
@@ -68,21 +70,71 @@ import SwiftUI
         envSet("D3DM_MAX_FPS", on ? "60" : nil)
         envSet("DXMT_CONFIG", on ? "d3d11.preferredMaxFrameRate=60;d3d11.metalSpatialUpscaleFactor=1.5" : nil)
     }
-    // Stop Steam: ask politely, and if it is still up after 20 s (it sometimes ignores -shutdown), end its processes.
-    func steamRunning() -> Bool { isRunning("Steam\\steam.exe") }   // libproc, matches the Windows command line Wine shows
-    func stopSteam() async {
-        wine(selected, ["C:\\Program Files (x86)\\Steam\\steam.exe", "-shutdown"], block: false)
-        for _ in 0..<20 { try? await Task.sleep(nanoseconds: 1_000_000_000); if !steamRunning() { break } }
-        if steamRunning() { log += "Steam ignored the shutdown request; stopping it.\n"; _ = sh("pkill -f 'steam.exe'; sleep 3; pkill -9 -f 'steamwebhelper|steamservice'; sleep 1") }
+    // Steam of one bottle (default: the selected one). Wine keeps each process's working folder on its Windows current directory, so this
+    // bottle's Steam, and every game it starts, works inside the bottle; another bottle's Steam doesn't count. libproc, no ps.
+    func steamRunning(in bottle: String? = nil) -> Bool { Model.steamRunning(bottle ?? selected) }
+    nonisolated static func steamRunning(_ bottle: String) -> Bool { !bottle.isEmpty && !procFind("Steam\\steam.exe", under: realPath("\(bottlesDir)/\(bottle)")).isEmpty }
+    // Stop this bottle's Steam: ask politely; if it is still up after 20 s (it sometimes ignores -shutdown), stop this bottle's Wine programs
+    // (its own wineserver). Never another bottle's Steam: this used to pkill every steam.exe on the Mac.
+    func stopSteam(_ bottle: String? = nil) async {
+        let b = bottle ?? selected, pfx = "\(bottlesDir)/\(b)", ws = "\((wineBin as NSString).deletingLastPathComponent)/wineserver"
+        wine(b, ["C:\\Program Files (x86)\\Steam\\steam.exe", "-shutdown"], block: false)
+        for _ in 0..<20 { try? await Task.sleep(nanoseconds: 1_000_000_000); if !steamRunning(in: b) { break } }
+        if steamRunning(in: b) { log += "Steam ignored the shutdown request; stopping \(b)'s programs.\n"; _ = sh("env WINEPREFIX='\(pfx)' '\(ws)' -k") }
         // Let the prefix's wineserver finish tearing down (≤15 s); relaunching into a dying server made Steam fail to create its first window.
-        _ = sh("env WINEPREFIX='\(bottlesDir)/\(selected)' perl -e 'alarm 15; exec @ARGV' -- '\((wineBin as NSString).deletingLastPathComponent)/wineserver' -w 2>/dev/null; sleep 1")
+        _ = sh("env WINEPREFIX='\(pfx)' perl -e 'alarm 15; exec @ARGV' -- '\(ws)' -w 2>/dev/null; sleep 1")
     }
-    // Steam hands its environment to every game it starts, so a bottle-wide env change needs Steam restarted. Only when no game is running.
-    func restartSteamIfIdle() {
-        guard let s = programs.first(where: { $0.hasSuffix("/Steam/steam.exe") }), steamRunning(),
-              sh("ps -axo command= | grep -c 'steamapps.common'").hasPrefix("0") else { return }
-        log += "Restarting Steam so the change reaches games…\n"
-        Task { @MainActor in await stopSteam(); launch(s) }
+    // Item 24: why this bottle's Steam must not be restarted right now, or nil. A download: an app manifest in a download/update state, or
+    // Steam's own Updating flag. A game: a process from steamapps\common working inside this bottle, or Steam's Running flag.
+    nonisolated static func steamBusy(_ bottle: String) -> String? {
+        let pfx = "\(bottlesDir)/\(bottle)", apps = pfx + "/drive_c/Program Files (x86)/Steam/steamapps"
+        if !procFind("steamapps\\common", under: realPath(pfx)).isEmpty { return "a game is running" }
+        let active = 256 | 1024 | 131072 | 262144 | 524288 | 1048576 | 2097152 | 4194304   // EAppState: update running/started, validating,
+        func field(_ t: String, _ k: String) -> String? {                                     // adding files, preallocating, downloading, staging, committing
+            t.range(of: "\"\(k)\"\\s+\"[^\"]*\"", options: .regularExpression).map { String(t[$0]).components(separatedBy: "\"").dropLast().last ?? "" }
+        }
+        for f in (try? FileManager.default.contentsOfDirectory(atPath: apps)) ?? [] where f.hasPrefix("appmanifest_") && f.hasSuffix(".acf") {
+            let t = (try? String(contentsOfFile: "\(apps)/\(f)", encoding: .utf8)) ?? ""
+            if let flags = field(t, "StateFlags").flatMap({ Int($0) }), flags & active != 0 { return "downloading \(field(t, "name") ?? f)" }
+        }
+        let reg = (try? String(contentsOfFile: pfx + "/user.reg", encoding: .utf8)) ?? ""
+        for sec in reg.components(separatedBy: "\n[") where sec.hasPrefix("Software\\\\Valve\\\\Steam\\\\Apps\\\\") {
+            if sec.contains("\"Updating\"=dword:00000001") { return "updating a game" }
+            if sec.contains("\"Running\"=dword:00000001") { return "a game is running" }
+        }
+        return nil
+    }
+    // Item 24: never a surprise Steam restart. Idle: restart now. Downloading or a game running: wait (re-checked every 20 s) and say so;
+    // the bar above the programs offers "Restart now" (the user's call) and "Not now" (the change reaches games at Steam's next start).
+    func requestSteamRestart(_ why: String) {
+        let b = selected
+        guard programs.contains(where: { $0.hasSuffix("/Steam/steam.exe") }), steamRunning(in: b) else { return }
+        if let busy = Model.steamBusy(b) {
+            if pendingSteamRestart == nil { let m = "Steam will restart once it's idle (\(busy) now), so \(why).\n"; log += m; logToFile(m) }
+            pendingSteamRestart = (b, why, busy)
+            guard !steamWaitArmed else { return }
+            steamWaitArmed = true
+            Task { @MainActor in
+                while let p = pendingSteamRestart, let now = Model.steamBusy(p.bottle) { pendingSteamRestart?.busy = now; try? await Task.sleep(nanoseconds: UInt64(steamIdlePoll * 1e9)) }
+                steamWaitArmed = false
+                if let p = pendingSteamRestart, p.bottle == selected { pendingSteamRestart = nil; requestSteamRestart(p.why) }
+            }
+            return
+        }
+        restartSteam(b, because: why)
+    }
+    func restartSteam(_ b: String, because why: String) {
+        guard let s = programs.first(where: { $0.hasSuffix("/Steam/steam.exe") }) else { return }
+        let m = "Restarting Steam so \(why)…\n"; log += m; logToFile(m)
+        Task { @MainActor in await stopSteam(b); launch(s) }
+    }
+    var steamIdlePoll: Double { isTestBuild ? Double(ProcessInfo.processInfo.environment["COSMO_TEST_IDLE_POLL"] ?? "") ?? 20 : 20 }
+    // Asks before something the user may not want right now. The CLI can't show a dialog: it logs the question and answers Cancel, unless
+    // the test build is told otherwise (COSMO_TEST_ANSWER=yes).
+    func ask(_ question: String, _ detail: String, yes: String) -> Bool {
+        if cliMode { let y = isTestBuild && ProcessInfo.processInfo.environment["COSMO_TEST_ANSWER"] == "yes"; log += "ASK: \(question) \(detail) → \(y ? yes : "Cancel")\n"; return y }
+        let a = NSAlert(); a.messageText = question; a.informativeText = detail; a.addButton(withTitle: yes); a.addButton(withTitle: "Cancel")
+        return a.runModal() == .alertFirstButtonReturn
     }
     // Settings › "Start Steam together with Cosmopolitan" (default on), and AUTOSTART_STEAM=0 in a bottle opts that bottle out.
     func autostartAllowed() -> Bool { (UserDefaults.standard.object(forKey: "autostartSteam") == nil || UserDefaults.standard.bool(forKey: "autostartSteam")) && launchEnvRaw()["AUTOSTART_STEAM"] != "0" }

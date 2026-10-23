@@ -9,11 +9,13 @@ let updater = SPUStandardUpdaterController(startingUpdater: !isTestBuild, update
     init() {
         enterTestModeIfNeeded()   // first, before any path is computed
         let a = CommandLine.arguments
-        let modes = ["--settings", "--setup", "--session-end", "--troubleshoot", "--repair", "--input", "--find", "--status", "--check", "--update", "--launch", "--tune", "--tunesteam", "--newbottle", "--accept-d3dmetal", "--snapshot", "--rollback", "--importables", "--import", "--willitrun", "--bugreport", "--hints", "--offline", "--compress", "--shaders", "--volumes", "--offlineexe", "--uslayout", "--hudocr", "--saves", "--mods", "--addmod", "--mod", "--rumble", "--padmode", "--procs", "--clean-driver-copies", "--sweep-registry", "--tree-hash", "--install-d3dmetal", "--print-env", "--install-runtime", "--snapshots", "--bisect", "--cleanup", "--gog-signin", "--gog-redirect"]   // --launch <bottle> <exe> [seconds] | --wait [max seconds]   // --check <bottle> <exe>: dry-run of the launch check
+        let modes = ["--settings", "--setup", "--session-end", "--troubleshoot", "--repair", "--input", "--find", "--status", "--check", "--update", "--launch", "--tune", "--tunesteam", "--newbottle", "--accept-d3dmetal", "--snapshot", "--rollback", "--importables", "--import", "--willitrun", "--bugreport", "--hints", "--offline", "--compress", "--shaders", "--volumes", "--offlineexe", "--uslayout", "--hudocr", "--saves", "--mods", "--addmod", "--mod", "--rumble", "--padmode", "--procs", "--clean-driver-copies", "--sweep-registry", "--tree-hash", "--install-d3dmetal", "--print-env", "--install-runtime", "--snapshots", "--bisect", "--cleanup", "--gog-signin", "--gog-redirect", "--steam-busy", "--steam-restart"]   // --launch <bottle> <exe> [seconds] | --wait [max seconds]   // --check <bottle> <exe>: dry-run of the launch check
         guard let i = a.firstIndex(where: { modes.contains($0) }) else { return }
         cliMode = true
         let m = Model()
         if i + 1 < a.count, FileManager.default.fileExists(atPath: "\(bottlesDir)/\(a[i + 1])/drive_c") { m.selected = a[i + 1]; m.scan() }   // only real bottles: caches must never create one
+        // A path given here may spell a file differently from the scan (/private/tmp vs /tmp: NSHomeDirectory drops /private), and the
+        // scan keys Steam games, store games and readiness by its own spelling: --launch and --check map the path onto it by real path.
         switch a[i] {
         case "--repair": m.repair(); case "--input": m.inputCheck(); case "--find": m.findApps(); case "--update": m.log += Model.performUpdate(install: a.contains("--install"))
         case "--tunesteam": m.tuneSteam()
@@ -62,13 +64,18 @@ let updater = SPUStandardUpdaterController(startingUpdater: !isTestBuild, update
         case "--cleanup": m.log += cleanUp(bottles: m.bottles)   // what the daily housekeeping does
         case "--gog-signin": if i + 1 < a.count { m.log += Model.gogSignIn(redirectURL: a[i + 1]).message + "\n" }   // what the sheet does with the address
         case "--gog-redirect": if i + 1 < a.count { m.log += (URL(string: a[i + 1]).map(Model.isGogRedirect) == true ? "caught" : "not a sign-in address") + "\n" }
+        case "--steam-busy": m.log += "steam in \(m.selected): \(m.steamRunning() ? "running" : "not running"); \(Model.steamBusy(m.selected).map { "busy: " + $0 } ?? "idle")\n"
+        case "--steam-restart": if i + 2 < a.count {   // --steam-restart <bottle> <why> [seconds to keep waiting, default 10]
+            m.requestSteamRestart(a[i + 2]); RunLoop.main.run(until: Date().addingTimeInterval(Double(a.count > i + 3 ? a[i + 3] : "10") ?? 10))
+            m.log += "pending restart: \(m.pendingSteamRestart.map { "yes (\($0.busy))" } ?? "no")\n"
+        }
         case "--snapshots": for s in m.snapshots() { m.log += "snapshot \(s.when)  \(s.reason)\n" }; m.log += "disk held only by snapshots: \(Model.snapshotDiskUse(m.selected)) bytes\n"
         case "--bisect": if i + 2 < a.count { m.bisect(a[i + 2]); RunLoop.main.run(until: Date().addingTimeInterval(3)) }
         case "--importables": m.log += m.importableBottles().map { "\($0.label)\t\($0.path)" }.joined(separator: "\n") + "\n"
         case "--import": if i + 3 < a.count { m.importBottle(a[i + 2], as: a[i + 3]); RunLoop.main.run(until: Date().addingTimeInterval(60)) }
         case "--tune": if i + 2 < a.count { m.log += m.tuneUnreal(a[i + 2]) ?? "nothing to tune (no settings file yet, or already tuned)\n" }
         case "--launch": if i + 2 < a.count {
-            let exe = a[i + 2], name = (exe as NSString).lastPathComponent
+            let exe = m.programs.first { realPath($0) == realPath(a[i + 2]) } ?? a[i + 2], name = (exe as NSString).lastPathComponent   // the scan's spelling
             if let w = a.firstIndex(of: "--wait") {   // --launch <bottle> <exe> --wait [max seconds, default 120]: until the program exits
                 let limit = Double(a.count > w + 1 ? a[w + 1] : "120") ?? 120, t0 = Date()
                 m.launchOutputToLog = true
@@ -82,7 +89,7 @@ let updater = SPUStandardUpdaterController(startingUpdater: !isTestBuild, update
                 m.launch(exe); RunLoop.main.run(until: Date().addingTimeInterval(Double(a.count > i + 3 ? a[i + 3] : "30") ?? 30))
             }
         }
-        case "--check": if i + 2 < a.count { let n = m.launchNeeds(a[i + 2]); m.log += n.note + "drivers override: \(n.drivers ?? ["(bottle setting)"]) verbs: \(n.verbs) overrides: \(n.overrides) env: \(n.env) args: \(n.args) desktop: \(n.desktop) light: \(n.status == .green ? "green" : n.status == .yellow ? "yellow" : "red")\n" }
+        case "--check": if i + 2 < a.count { let n = m.launchNeeds(m.programs.first { realPath($0) == realPath(a[i + 2]) } ?? a[i + 2]); m.log += n.note + "drivers override: \(n.drivers ?? ["(bottle setting)"]) verbs: \(n.verbs) overrides: \(n.overrides) env: \(n.env) args: \(n.args) desktop: \(n.desktop) light: \(n.status == .green ? "green" : n.status == .yellow ? "yellow" : "red")\n" }
         case "--status": m.log += "d3dmetal: " + (m.d3dmetalNow.map { "\($0.pretty) from \($0.source); features: " + $0.features.sorted().joined(separator: " ") + (d3dmetalOK ? "; license accepted" : "; license not accepted") } ?? "not installed") + "\n"; m.log += "drivers: \(m.driverStatus.0 == .green ? "green" : m.driverStatus.0 == .yellow ? "yellow" : "red") (\(m.driverStatus.1))\ncontroller: \(m.padStatus.0 == .green ? "green" : m.padStatus.0 == .yellow ? "yellow" : "red") (\(m.padStatus.1))\n"
         default: m.troubleshoot() }
         print(m.log); exit(cliExitCode)

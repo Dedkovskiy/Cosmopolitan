@@ -86,15 +86,20 @@ int main(int argc, char **argv) {
     char out[64] = "garbage"; CHECK(cosmo_controllers(out, sizeof out) == 0 && out[0] == 0, "controllers with a throw inside");
     CHECK(cosmo_on_battery() == -1, "on_battery with a throw inside");
     int32_t pids[4]; CHECK(cosmo_proc_find("launchd", pids, 4) == 0, "proc_find with a throw inside");
+    CHECK(cosmo_proc_find_in("launchd", "/", pids, 4) == 0, "proc_find_in with a throw inside");
     unsetenv("COSMO_NATIVE_TEST_THROW");
     pid_t child; char *sl[] = { const_cast<char *>("/bin/sleep"), const_cast<char *>("3"), nullptr };
-    if (posix_spawn(&child, "/bin/sleep", nullptr, nullptr, sl, environ) == 0) {
+    posix_spawn_file_actions_t fa; posix_spawn_file_actions_init(&fa); posix_spawn_file_actions_addchdir(&fa, "/private/tmp");
+    if (posix_spawn(&child, "/bin/sleep", &fa, nullptr, sl, environ) == 0) {
         CHECK(cosmo_proc_find("/bin/sleep", pids, 4) > 0, "proc_find finds our own /bin/sleep child normally");
+        CHECK(cosmo_proc_find_in("/bin/sleep", "/private/tmp", pids, 4) > 0, "proc_find_in finds the child by its working folder");
+        CHECK(cosmo_proc_find_in("/bin/sleep", "/private/tm", pids, 4) == 0, "proc_find_in matches whole folder names only");
+        CHECK(cosmo_proc_find_in("/bin/sleep", "/usr/share", pids, 4) == 0, "proc_find_in skips processes working elsewhere");
         kill(child, SIGTERM); waitpid(child, nullptr, 0);
     }
     const int b = cosmo_on_battery(); CHECK(b >= -1 && b <= 1, "on_battery range %d", b);
 
     if (failures) printf("native tests: %d FAILED\n", failures);
-    else printf("native tests: all passed (%zu truncations, 7 malformed headers, 5 boundary throws)\n", runs);
+    else printf("native tests: all passed (%zu truncations, 7 malformed headers, 6 boundary throws)\n", runs);
     return failures != 0;
 }

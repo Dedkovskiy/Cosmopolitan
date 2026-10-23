@@ -72,12 +72,8 @@ extension Model {
 
     // Launch each program once: skip if its Windows path is already a running process.
     func launch(_ exe: String) {
-        let win = winPath(exe)
-        let ps = Process(); ps.executableURL = URL(fileURLWithPath: "/bin/ps"); ps.arguments = ["-axo", "command"]
-        let out = Pipe(); ps.standardOutput = out
-        try? ps.run()
-        let list = String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-        if list.components(separatedBy: "\n").contains(where: { $0.hasPrefix(win) }) {
+        // This bottle only (libproc; ps is setuid and can't run sandboxed): the same Windows path in another bottle is another program.
+        if !procFind(winPath(exe), under: realPath("\(bottlesDir)/\(selected)")).isEmpty {
             log += "\((exe as NSString).lastPathComponent) is already running.\n"; return
         }
         if let g = epicGames[exe] { log += powerHints(); launchEpic(g.id, exe: exe); return }
@@ -88,7 +84,7 @@ extension Model {
         if options(exe)["DRIVERS"] == nil, let d = storeDrivers(exe) { need.drivers = d }   // store clients: DXMT set unless the user chose otherwise
         for s in Store.allCases where storeExe(s) == exe { need.args += s.args; if s == .epic { finishEpicLauncherUpdate(exe) } }
         // A Steam game inherits Steam's environment, so a driver change OR per-game env from Options… needs Steam restarted with it.
-        start(need, cmd, args, exe: exe, restartSteam: steamGames[exe] != nil && (need.drivers != nil || !need.env.isEmpty || need.restartSteam) && list.contains("C:\\Program Files (x86)\\Steam\\steam.exe"))
+        start(need, cmd, args, exe: exe, restartSteam: steamGames[exe] != nil && (need.drivers != nil || !need.env.isEmpty || need.restartSteam) && steamRunning())
     }
 
     // Launch check + the registry it implies (overrides, old-era desktop, Windows version). Returns what start() needs.

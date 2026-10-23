@@ -153,10 +153,7 @@ extension Model {
                 if needs12 { FileManager.default.createFile(atPath: marker, contents: nil) } else { try? FileManager.default.removeItem(atPath: marker) }
                 log += needs12 ? "A Direct3D 12 game is installed: this bottle now runs d3dmetal for Direct3D 10/11/12.\n" : "No Direct3D 12 game left: back to dxmt for Direct3D 10/11.\n"
                 loadSettings(); for p in programs { readiness[p] = launchNeeds(p) }
-                if let s = programs.first(where: { $0.hasSuffix("/Steam/steam.exe") }), steamRunning() {
-                    log += "Restarting Steam with the new driver set…\n"
-                    await stopSteam(); launch(s)
-                }
+                requestSteamRestart("games started from Steam get the new driver set")
             }
             // A missing driver folder comes back from the pinned template instead of leaving a red light.
             if driverStatus.1.hasPrefix("missing:"), !busy { restoreMissingDrivers() }

@@ -61,7 +61,7 @@ struct ContentView: View {
                 Text("Windows version per program · drivers per program · runtimes and community fixes on launch · Steam starts with the app · msync · 60 fps cap and lighter rendering while on battery")
                     .font(.caption).foregroundStyle(.secondary)
                 Toggle("Metal performance HUD", isOn: $m.hud).disabled(m.selected.isEmpty)
-                    .onChange(of: m.hud) { _, v in if !m.loading { m.envSet("MTL_HUD_ENABLED", v ? "1" : nil); m.restartSteamIfIdle() } }
+                    .onChange(of: m.hud) { _, v in if !m.loading { m.envSet("MTL_HUD_ENABLED", v ? "1" : nil); m.requestSteamRestart("games started from Steam show the HUD setting") } }
                 Divider()
                 HStack {
                     Circle().fill(m.driverStatus.0).frame(width: 10, height: 10)
@@ -88,6 +88,11 @@ struct ContentView: View {
             VStack(alignment: .leading) {
                 HStack {
                     Text("Programs in \(m.selected)").font(.headline)
+                    if let p = m.pendingSteamRestart {   // item 24: waiting for Steam to be idle; the user can decide now
+                        Text("Steam restarts once it's idle (\(p.busy) now), so \(p.why).").font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                        Button("Restart now") { m.pendingSteamRestart = nil; m.restartSteam(p.bottle, because: p.why) }.controlSize(.small)
+                        Button("Not now") { m.pendingSteamRestart = nil; m.log += "Steam keeps running; the change reaches games when Steam next starts.\n" }.controlSize(.small)
+                    }
                     Spacer()
                     Button("Find apps") { m.findApps() }.disabled(m.selected.isEmpty || m.busy)
                         .help("Searches the whole C: drive of this bottle for programs the normal scan missed.")

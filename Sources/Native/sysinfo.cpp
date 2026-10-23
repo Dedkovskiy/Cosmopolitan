@@ -60,8 +60,11 @@ static int on_battery() {
     CFRelease(info); return r;
 }
 
-// PIDs of processes whose executable path or any argument contains `needle` (case-sensitive), excluding the caller. Returns count.
-static int proc_find(const char *needle, int32_t *pids, int cap) {
+// PIDs of processes whose executable path or argv[0] contains `needle` (case-sensitive) and, when `cwd_under` is given, whose working
+// folder is that folder or inside it. Wine keeps each process's Unix working folder on its Windows current directory, so that tells
+// bottles apart (Wine overwrites the argument and environment block with the Windows command line: WINEPREFIX can't be read back).
+// Excludes the caller. Returns count.
+static int proc_find(const char *needle, const char *cwd_under, int32_t *pids, int cap) {
     int n = proc_listallpids(nullptr, 0); if (n <= 0) return 0;
     std::vector<pid_t> all(n * 2); n = proc_listallpids(all.data(), (int)(all.size() * sizeof(pid_t))); if (n <= 0) return 0;
     pid_t me = getpid(); int found = 0;
@@ -77,6 +80,11 @@ static int proc_find(const char *needle, int32_t *pids, int cap) {
         const char *p = buf.data() + sizeof(int), *end = buf.data() + sz;
         const char *exe = p; p += strnlen(p, size_t(end - p)) + 1; while (p < end && *p == 0) p++;
         bool hit = strstr(exe, needle) != nullptr || (p < end && strstr(p, needle) != nullptr);
+        if (hit && cwd_under && *cwd_under) {
+            struct proc_vnodepathinfo vpi; const size_t len = strlen(cwd_under);
+            hit = proc_pidinfo(pid, PROC_PIDVNODEPATHINFO, 0, &vpi, sizeof vpi) == (int)sizeof vpi && strncmp(vpi.pvi_cdir.vip_path, cwd_under, len) == 0
+                  && (vpi.pvi_cdir.vip_path[len] == '/' || vpi.pvi_cdir.vip_path[len] == 0);
+        }
         if (hit) pids[found++] = pid;
     }
     return found;
@@ -94,7 +102,8 @@ extern "C" int cosmo_controllers(char *out, size_t cap) noexcept {
 extern "C" int cosmo_on_battery(void) noexcept {
     try { test_throw(); return on_battery(); } catch (...) { return -1; }
 }
-extern "C" int cosmo_proc_find(const char *needle, int32_t *pids, int cap) noexcept {
+extern "C" int cosmo_proc_find_in(const char *needle, const char *cwd_under, int32_t *pids, int cap) noexcept {
     if (!needle || !pids || cap <= 0) return 0;
-    try { test_throw(); return proc_find(needle, pids, cap); } catch (...) { return 0; }
+    try { test_throw(); return proc_find(needle, cwd_under, pids, cap); } catch (...) { return 0; }
 }
+extern "C" int cosmo_proc_find(const char *needle, int32_t *pids, int cap) noexcept { return cosmo_proc_find_in(needle, nullptr, pids, cap); }
