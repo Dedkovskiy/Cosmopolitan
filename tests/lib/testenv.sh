@@ -14,7 +14,7 @@ TESTENV_REPO="${${(%):-%x}:A:h:h:h}"
 REAL_HOME="$(dscl . -read /Users/$(id -un) NFSHomeDirectory | awk '{print $2}')"
 REAL_SUPPORT="$REAL_HOME/Library/Application Support/Cosmopolitan"
 REAL_LOG="$REAL_HOME/Library/Logs/Cosmopolitan.log"
-ENGINE="${COSMO_ENGINE:-WS12WineSikarugir10.0_8}"
+ENGINE="${COSMO_ENGINE:-WS12WineSikarugir10.0_8}"   # COSMO_ENGINE_DIR: a trial engine folder outside your app data (copied in as $ENGINE)
 
 testenv_init() {
   emulate -L zsh
@@ -28,7 +28,8 @@ testenv_init() {
   rm -rf "$T/CosmopolitanTest.app/Contents/Resources/Metadata.appintents"   # its intents never reach your Shortcuts
   codesign --force --deep --sign - "$T/CosmopolitanTest.app" 2>/dev/null
   if [[ -z "${TESTENV_NO_ENGINE:-}" ]]; then   # a --setup test wants an empty support folder
-    cp -cR "$REAL_SUPPORT/engines/$ENGINE" "$REAL_SUPPORT/engines/renderer" "$TS/engines/" 2>/dev/null
+    if [[ -n "${COSMO_ENGINE_DIR:-}" ]]; then cp -cR "$COSMO_ENGINE_DIR" "$TS/engines/$ENGINE"; defaults write "$TESTID" engine "$ENGINE"; else cp -cR "$REAL_SUPPORT/engines/$ENGINE" "$TS/engines/" 2>/dev/null; fi
+    cp -cR "$REAL_SUPPORT/engines/renderer" "$TS/engines/" 2>/dev/null
     [[ -d "$REAL_SUPPORT/engines/gstreamer" ]] && cp -cR "$REAL_SUPPORT/engines/gstreamer" "$TS/engines/"
     local bin="$TS/engines/$ENGINE/wswine.bundle/bin" f
     for f in "$bin"/*(N.); do [[ "$f:t" != wine ]] && cmp -s "$f" "$bin/wine" && rm -f "$f"; done   # loader copies named after your programs (exact copies of bin/wine)
