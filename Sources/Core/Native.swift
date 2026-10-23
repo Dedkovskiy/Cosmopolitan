@@ -19,6 +19,8 @@ func procFind(_ needle: String, under dir: String? = nil) -> [Int32] {
     return Array(pids.prefix(Int(n)))
 }
 func isRunning(_ needle: String) -> Bool { !procFind(needle).isEmpty }
+// Item 28: what a program needs, decided in C++ from its imports (and those of the DLLs beside it), bitness and .NET header.
+func preflight(_ imports: [String], is32: Bool, clr: Bool) -> cosmo_preflight_result { cosmo_preflight(imports.joined(separator: ","), is32 ? 1 : 0, clr ? 1 : 0) }
 // PE facts + imports (normal and delay-load), lower-cased.
 func peRead(_ path: String) -> (info: cosmo_pe_info, imports: [String]) {
     var buf = [CChar](repeating: 0, count: 16384)

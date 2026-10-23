@@ -95,8 +95,24 @@ TEST(row12_boundary) { CHECK(cosmo_fallback(nullptr, COSMO_BE_DXMT).error == 1, 
     setenv("COSMO_NATIVE_TEST_THROW", "1", 1); auto in = base(); auto d = cosmo_fallback(&in, COSMO_BE_DXMT); unsetenv("COSMO_NATIVE_TEST_THROW");
     CHECK(d.error == 2, "an exception inside must come back as error 2 (got %d)", d.error); }
 
+// Pre-flight rules (item 28): one test per rule, both bitnesses, the .NET header, and the boundary.
+static cosmo_preflight_result pf(const char *csv, int is32 = 0, int clr = 0) { return cosmo_preflight(csv, is32, clr); }
+TEST(preflight_apis_from_imports) { auto r = pf("kernel32.dll,d3d11.dll,dxgi.dll,ddraw.dll,d3d10_1.dll");
+    CHECK(r.apis == (COSMO_API_D3D11 | COSMO_API_DDRAW | COSMO_API_D3D10) && r.needs == 0, "apis %x needs %x", r.apis, r.needs); }
+TEST(preflight_vc_runtime_follows_bitness) { CHECK(pf("vcruntime140.dll", 0).needs == COSMO_NEED_VCREDIST64, "64-bit: %x", pf("vcruntime140.dll", 0).needs);
+    CHECK(pf("msvcp140_1.dll", 1).needs == COSMO_NEED_VCREDIST86, "32-bit: %x", pf("msvcp140_1.dll", 1).needs);
+    CHECK(pf("msvcp120.dll,msvcrt.dll").needs == 0, "older VC runtimes and msvcrt are not ours: %x", pf("msvcp120.dll,msvcrt.dll").needs); }
+TEST(preflight_directx_june_2010) { CHECK(pf("d3dx9_43.dll").needs == COSMO_NEED_DIRECTX && pf("xinput1_3.dll").needs == COSMO_NEED_DIRECTX
+          && pf("d3dcompiler_43.dll").needs == COSMO_NEED_DIRECTX, "d3dx9/xinput1_3/d3dcompiler_43");
+    CHECK(pf("d3dcompiler_47.dll,xinput9_1_0.dll").needs == 0, "d3dcompiler_47 and xinput9_1_0 ship with Windows: %x", pf("d3dcompiler_47.dll,xinput9_1_0.dll").needs); }
+TEST(preflight_dotnet_by_header_or_import) { CHECK(pf("", 0, 1).needs == COSMO_NEED_DOTNET, "CLR header alone");
+    CHECK(pf("mscoree.dll").needs == COSMO_NEED_DOTNET, "mscoree import alone"); CHECK(pf("kernel32.dll").needs == 0, "neither"); }
+TEST(preflight_boundary) { CHECK(cosmo_preflight(nullptr, 0, 0).error == 1, "null input");
+    setenv("COSMO_NATIVE_TEST_THROW", "1", 1); auto r = cosmo_preflight("d3d11.dll", 0, 0); unsetenv("COSMO_NATIVE_TEST_THROW");
+    CHECK(r.error == 2, "an exception inside must come back as error 2 (got %d)", r.error); }
+
 int main() {
     if (failures) printf("decision tests: %d FAILED of %d\n", failures, tests);
-    else printf("decision tests: all %d passed (rows 1-12, precedence, scenario A, boundary)\n", tests);
+    else printf("decision tests: all %d passed (rows 1-12, precedence, scenario A, pre-flight, boundaries)\n", tests);
     return failures != 0;
 }

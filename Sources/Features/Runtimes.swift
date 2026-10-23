@@ -8,14 +8,18 @@ enum Runtime: String, CaseIterable, Sendable {
 }
 
 extension Model {
-    nonisolated static let vcDLLs: Set<String> = ["msvcp140.dll", "msvcp140_1.dll", "msvcp140_2.dll", "msvcp140_atomic_wait.dll", "msvcp140_codecvt_ids.dll",
-        "vcruntime140.dll", "vcruntime140_1.dll", "concrt140.dll", "vccorlib140.dll", "mfc140.dll", "mfc140u.dll", "vcomp140.dll", "vcamp140.dll"]
-    // The runtime that provides a DLL a program imports, if it is one of ours.
+    // The runtime that provides a DLL a program imports, if it is one of ours. The rule lives in C++ (cosmo_preflight, item 13).
     nonisolated static func runtimeFor(dll: String, is32: Bool) -> Runtime? {
-        let d = dll.lowercased()
-        if vcDLLs.contains(d) { return is32 ? .vcredist86 : .vcredist64 }
-        let dx = ["d3dx9_", "d3dx10", "d3dx11_", "xaudio2_", "x3daudio1_", "xactengine", "xapofx1_", "xinput1_", "d3dcompiler_3", "d3dcompiler_40", "d3dcompiler_41", "d3dcompiler_42", "d3dcompiler_43"]
-        return dx.contains(where: d.hasPrefix) ? .directx : nil
+        let n = cosmo_preflight(dll.lowercased(), is32 ? 1 : 0, 0).needs
+        if n & UInt32(COSMO_NEED_VCREDIST86) != 0 { return .vcredist86 }
+        if n & UInt32(COSMO_NEED_VCREDIST64) != 0 { return .vcredist64 }
+        return n & UInt32(COSMO_NEED_DIRECTX) != 0 ? .directx : nil
+    }
+    // Item 28: the imports of the DLLs beside a program (its folder, top level, at most 64): an engine DLL can import Direct3D or a runtime
+    // the exe itself doesn't. They only add graphics APIs and runtimes, never "missing DLLs" (an unused plugin may import anything).
+    nonisolated static func besideImports(_ dir: String) -> Set<String> {
+        let dlls = ((try? FileManager.default.contentsOfDirectory(atPath: dir)) ?? []).filter { $0.lowercased().hasSuffix(".dll") }.sorted().prefix(64)
+        return Set(dlls.flatMap { peRead("\(dir)/\($0)").imports })
     }
     // Community-fix (winetricks) verbs that name one of these runtimes.
     nonisolated static func runtimesFor(verb: String) -> [Runtime] {
@@ -25,6 +29,12 @@ extension Model {
         return []
     }
     nonisolated static func runtimeMarker(_ prefix: String, _ r: Runtime) -> String { prefix + "/.runtime-" + r.rawValue }
+    // Microsoft's file, not Wine's builtin stand-in (in every bottle's system folders): Wine stamps "Wine builtin DLL" at offset 64, in the DOS stub.
+    nonisolated static func isMicrosoftDLL(_ path: String) -> Bool {
+        guard let h = FileHandle(forReadingAtPath: path), let head = try? h.read(upToCount: 256) else { return false }
+        try? h.close()
+        return head.count >= 128 && head.range(of: Data("Wine builtin DLL".utf8)) == nil
+    }
 
     // Installs the pinned runtime into the bottle. Blocking: call off the main actor.
     @discardableResult nonisolated static func installRuntime(_ r: Runtime, prefix: String, log: @escaping (String) -> Void) -> Bool {
@@ -45,8 +55,7 @@ extension Model {
         try? fm.removeItem(atPath: dst)
         // Installed = the runtime's DLL in the system folder is Microsoft's file, not Wine's builtin stand-in.
         let (dir, probe) = r == .vcredist64 ? ("system32", "msvcp140.dll") : r == .vcredist86 ? ("syswow64", "msvcp140.dll") : ("syswow64", "d3dx9_43.dll")
-        let data = (try? Data(contentsOf: URL(fileURLWithPath: "\(prefix)/drive_c/windows/\(dir)/\(probe)"))) ?? Data()
-        let ok = !data.isEmpty && data.range(of: Data("Wine builtin DLL".utf8)) == nil
+        let ok = isMicrosoftDLL("\(prefix)/drive_c/windows/\(dir)/\(probe)")
         if ok { try? "\(r.pin.version)\n".write(toFile: runtimeMarker(prefix, r), atomically: true, encoding: .utf8) }
         log(ok ? "✓ \(r.pin.name) installed (\(dir)\\\(probe) is Microsoft's).\n" : "✗ \(r.pin.name): the installer ran, but \(dir)\\\(probe) is still Wine's own.\n")
         return ok

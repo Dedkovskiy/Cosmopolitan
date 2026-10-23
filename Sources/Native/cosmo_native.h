@@ -27,6 +27,7 @@ typedef struct {
     uint8_t  linker_major;     // 6 = VC6, 7–9 = VC2002–2008, 10+ = 2010+, 2 = GNU ld
     uint32_t delay_imports;    // number of delay-load import entries (also included in the imports list)
     int32_t  error;            // 0 ok, 1 cannot open, 2 truncated or malformed header, 3 internal error
+    uint8_t  clr;              // 1 = has a .NET (CLR) header: a managed program, whatever it imports
 } cosmo_pe_info;
 // Reads header facts and writes the comma-separated, lower-cased import DLL list (normal + delay-load) into `imports`.
 cosmo_pe_info cosmo_pe_read(const char *path, char *imports, size_t cap) COSMO_NOEXCEPT;
@@ -69,6 +70,11 @@ cosmo_decision cosmo_decide(const cosmo_decision_input *in) COSMO_NOEXCEPT;
 // Row 12, driver fallback: `crashed` failed this game within 30 s. USE the next backend of DXMT → D3DMetal → DXVK that serves the main
 // API and hasn't failed here; ASK (with that proposal) when the user pinned the crashed one; INCOMPATIBLE with backend NONE when none is left.
 cosmo_decision cosmo_fallback(const cosmo_decision_input *in, int32_t crashed) COSMO_NOEXCEPT;
+// ---- Pre-flight (item 28): what a program needs before it starts, from import names (its own and those of the DLLs beside it), its
+// bitness and its .NET header. Pure: names in, flags out. ----
+enum { COSMO_NEED_DOTNET = 1u << 0, COSMO_NEED_VCREDIST86 = 1u << 1, COSMO_NEED_VCREDIST64 = 1u << 2, COSMO_NEED_DIRECTX = 1u << 3 };
+typedef struct { uint32_t apis, needs; int32_t error; } cosmo_preflight_result;   // apis: COSMO_API_*; error 0 ok, 1 no input, 2 internal
+cosmo_preflight_result cosmo_preflight(const char *imports_csv, int32_t is32, int32_t clr) COSMO_NOEXCEPT;
 
 #ifdef __cplusplus
 }

@@ -451,6 +451,8 @@ Each item has its own commit and test (`tests/safety/<name>.sh`, all in `tests/r
 
 **27 Driver fallback.** Decision-table row 12 (`cosmo_fallback`, C++, with table tests): after a crash within 30 s, the next of DXMT → D3DMetal → DXVK that serves the game's main API and hasn't failed here; the user's own DRIVERS pin is asked about, never switched; none left → back to automatic. One retry per session. The working driver is written to the game's Options under a `# driver fallback:` line (with the drivers that crashed and the date) and appears in the prefilled compat report. Crash triage no longer rolls a recently updated driver back on its own: it asks.
 
+**28 Pre-flight.** `cosmo_preflight` (C++): Direct3D/DirectDraw imports → API bits; a .NET (CLR) header or `mscoree.dll` → Wine Mono; a Visual C++ 2015–2022 DLL → that runtime in the program's bitness; a DirectX June 2010 DLL → DirectX. Visual C++ comes from Microsoft's pinned installer unless the game ships the DLL or the bottle's copy is already Microsoft's (every bottle has Wine's stand-in, which doesn't count); DirectX only when its DLL is really missing (Wine's own d3dx9 serves the rest). The PE reader reports the CLR header (data directory 14). The DLLs beside a program add their imports to the graphics APIs and runtimes, never to "missing DLLs" (an unused plugin may import anything); games that load Direct3D at runtime are still found by the existing scan of large engine modules for D3D names.
+
 ## Sources
 
 **Apple Read Me files** (primary sources on this Mac, quoted verbatim above):

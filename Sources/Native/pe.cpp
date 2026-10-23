@@ -77,6 +77,7 @@ void pe_read(const char *path, cosmo_pe_info &r, std::string &list) {
     uint64_t o;
     if (ndirs > 1 && f.u32(dd + 8, rva) && rva && off(rva, o))                 // import directory: 20-byte descriptors, name RVA at +12
         for (uint32_t i = 0; i < 4096 && f.u32(o + uint64_t(i) * 20 + 12, name) && name; i++) add(name);
+    if (ndirs > 14 && f.u32(dd + 14 * 8, rva) && rva) r.clr = 1;                // CLR (.NET) header directory
     if (ndirs > 13 && f.u32(dd + 13 * 8, rva) && rva && off(rva, o))           // delay-load directory: 32-byte descriptors, name RVA at +4
         for (uint32_t i = 0; i < 4096 && f.u32(o + uint64_t(i) * 32 + 4, name) && name; i++) { add(name); r.delay_imports++; }
 }

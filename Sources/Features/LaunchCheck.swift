@@ -21,6 +21,7 @@ extension Model {
                 if p.hasSuffix("D3D12/D3D12Core.dll") { imps.append("d3d12.dll"); break }
             }
         }
+        let beside = Model.besideImports(dir).subtracting(imps)   // item 28: what the DLLs next to it import
         let local = Set(((try? fm.contentsOfDirectory(atPath: dir)) ?? []).map { $0.lowercased() })
         let sys = Set(((try? fm.contentsOfDirectory(atPath: "\(bottlesDir)/\(bottle)/drive_c/windows/system32")) ?? []).map { $0.lowercased() })
         let missing = imps.filter { !$0.hasPrefix("api-ms-") && !$0.hasPrefix("ext-ms-") && !builtinDLLs.contains($0) && !local.contains($0) && !sys.contains($0) }
@@ -53,7 +54,9 @@ extension Model {
         if template == "auto", !winver.isEmpty { parts.append("reports Windows as \(winver)") }
         // Driver plan from facts: APIs the game uses (imports + runtime loads), its 32/64-bit build, and what each installed driver ships.
         let highball = steamGames[exe].map { communityFixes($0.id).renderer }.flatMap { ["d3dmetal": "d3dmetal", "dxmt": "dxmt", "dxvk": "dxvk", "dxvk-moltenvk": "dxvk"][$0] }
-        let plan = driverPlan(exe, imports: imps, prefer: highball)
+        let besideGfx = beside.filter { $0.hasPrefix("d3d1") || $0 == "d3d9.dll" || $0 == "d3d8.dll" || $0 == "ddraw.dll" }
+        let plan = driverPlan(exe, imports: imps + besideGfx.sorted(), prefer: highball)
+        if !besideGfx.isEmpty { parts.append("the DLLs beside it use " + besideGfx.sorted().joined(separator: ", ")) }
         if !plan.apis.isEmpty { parts.append((plan.is32 ? "32-bit " : "64-bit ") + plan.why.joined(separator: ", ")) }
         else if let gfx = [("vulkan-1.dll", "Vulkan"), ("opengl32.dll", "OpenGL")].first(where: { imps.contains($0.0) }) { parts.append(gfx.1) }
         for api in plan.missing { parts.append("\(api) driver not installed for this build") }   // red light: it will not render
@@ -67,10 +70,16 @@ extension Model {
         }
         // Missing DLLs that a pinned Microsoft runtime provides are installed from Microsoft's own installer before the launch.
         var runtimes = Set(missing.compactMap { Model.runtimeFor(dll: $0, is32: is32) })
+        for d in beside where !local.contains(d) && !sys.contains(d) { if let r = Model.runtimeFor(dll: d, is32: is32) { runtimes.insert(r) } }
+        // Visual C++ 2015–2022 (item 28): an import of the program or of the DLLs beside it needs Microsoft's runtime in the program's bitness
+        // unless the game ships the DLL or the bottle's copy is already Microsoft's; Wine's own stand-in is in every bottle, so present isn't enough.
+        for d in Set(imps).union(beside) where !local.contains(d) {
+            if let r = Model.runtimeFor(dll: d, is32: is32), r != .directx, !Model.isMicrosoftDLL("\(win)/\(is32 ? "syswow64" : "system32")/\(d)") { runtimes.insert(r) }
+        }
         var verbs = Array(Set(missing.compactMap { depVerbs[$0] })).sorted()
         // .NET: ready only once the probe program has actually run in this bottle (Wine Mono from WineHQ, installed with the bottle).
         var dotnet = ""   // "", "pending" (not checked yet), "bad" (probe failed)
-        if imps.contains("mscoree.dll") {
+        if imps.contains("mscoree.dll") || peRead(exe).info.clr != 0 {   // the .NET header counts too (item 28)
             let pfx = "\(bottlesDir)/\(bottle)"
             if fm.fileExists(atPath: Model.dotnetMarker(pfx)) { parts.append(".NET app (.NET verified in this bottle)") }
             else if fm.fileExists(atPath: Model.dotnetFailMarker(pfx)) { dotnet = "bad"; parts.append(".NET doesn't run in this bottle yet — launching it or Repair installs Wine Mono from WineHQ") }
