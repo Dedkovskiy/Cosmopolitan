@@ -14,17 +14,23 @@ left() { pgrep -f 'rundll32\.exe|wineboot\.exe' | while read p; do [[ "$(lsof -a
 starts() { twine U cmd /c echo started 2>/dev/null | tr -d '\r' | grep -q started; }
 L="$TH/Library/Logs/Cosmopolitan.log"
 
-# A. With another program running in the bottle.
-twine U 'C:\sleeper.exe' >/dev/null 2>&1 &
-up() { [[ -n "$(tserverpid U)" ]] && pgrep -f 'sleeper\.exe' >/dev/null; }; poll 30 up || fail "the sleeper's wineserver did not start"; ws=$(tserverpid U)
+# A. With another program running in the bottle. Started from inside the bottle as the app starts every program (working folder = its
+# own folder): the app tells bottles apart by working folder. Started from here it was invisible, and the test only passed while the
+# update's own winemenubuilder.exe happened to be counted instead.
+# Up means what the app sees: Wine rewrites argv[0] to the Windows command once the program runs (before that the command line is the
+# loader's, and the app doesn't count it), and the bottle has finished starting, as with a Steam that has been running.
+(cd "$P/drive_c" && twine U 'C:\sleeper.exe') >/dev/null 2>&1 &
+inside() { pgrep -f '^C:.sleeper\.exe' | while read p; do [[ "$(lsof -a -p $p -d cwd -Fn 2>/dev/null | sed -n 's/^n//p')" == "${P:A}"* ]] && print $p; done; }
+up() { [[ -n "$(tserverpid U)" && -n "$(inside)" ]]; }; poll 30 up && poll 60 starts || fail "the sleeper did not start inside the bottle"; ws=$(tserverpid U)
 print 1 > "$P/.update-timestamp"
 COSMO_TEST_UPDATE_TIMEOUT=2 ct --print-env U >/dev/null 2>&1
 grep -q "didn't finish in 2 s; left running because 1 other program" "$L" || fail "A: no log line: $(grep -m1 "didn't finish" "$L")"
 [[ "$(cat "$P/.update-timestamp")" == 1 ]] || fail "A: the up-to-date stamp stayed after an unfinished update: $(cat "$P/.update-timestamp")"
-kill -0 $ws 2>/dev/null && pgrep -f 'sleeper\.exe' >/dev/null || fail "A: the wineserver or the other program was stopped"
-gone() { [[ -z "$(left)" ]]; }; poll 120 gone || fail "A: the update never finished in the background"
-poll 30 starts || fail "A: programs don't start in the bottle after the update finished"
-print "ok: A. with another program running, the late update was left alone (wineserver pid $ws and the program kept running), finished ${POLL_TOOK} s later, the stamp came back, programs start"
+kill -0 $ws 2>/dev/null && [[ -n "$(inside)" ]] || fail "A: the wineserver or the other program was stopped"
+gone() { [[ -z "$(left)" ]]; }; poll 120 gone || fail "A: the update never finished in the background"; fin=$POLL_TOOK
+t1=$EPOCHREALTIME; poll 30 starts || fail "A: programs don't start in the bottle after the update finished"
+st=$(printf '%.1f' $(( EPOCHREALTIME - t1 ))); (( st < 60 )) || fail "A: a new program waited $st s to start (the update's boot was cut off)"
+print "ok: A. with another program running, the late update was left alone (wineserver pid $ws and the program kept running), finished $fin s later, the stamp came back, a new program started in $st s"
 ct --print-env U >/dev/null 2>&1; [[ "$(cat "$P/.update-timestamp")" != 1 ]] || fail "A: the next start did not update the prefix"
 print "ok: A. the next start updated the prefix"
 twineserver U -k; poll 30 eval '[[ -z "$(tserverpid U)" ]]'
