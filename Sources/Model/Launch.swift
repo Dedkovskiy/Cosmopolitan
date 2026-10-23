@@ -100,6 +100,9 @@ extension Model {
         // Every value goes through the registry ledger, so it can be removed again when the setting that wanted it is gone.
         let e = (exe as NSString).lastPathComponent, b = selected
         func reg(_ key: String, _ name: String, _ value: String, owner: String = "launch") { Model.regSet(b, key, name, value, exe: e, owner: owner) }
+        // A Windows-version change (set, changed or dropped) gets a snapshot first; the ledger knows the version this program had.
+        let oldVer = Model.ledger(b).first { $0.key == "HKCU\\Software\\Wine\\AppDefaults\\\(e)" && $0.name == "Version" }?.value
+        if oldVer != (need.winver.isEmpty ? nil : need.winver) { snapshot("before Windows version change: \(e) \(oldVer ?? "default") → \(need.winver.isEmpty ? "default" : need.winver)") }
         if !need.overrides.isEmpty {
             let mark = "\(bottlesDir)/\(selected)/options/.overrides-\((exe as NSString).lastPathComponent)"
             if !FileManager.default.fileExists(atPath: mark) { snapshot("before community DLL overrides for \((exe as NSString).lastPathComponent)"); try? FileManager.default.createDirectory(atPath: (mark as NSString).deletingLastPathComponent, withIntermediateDirectories: true); FileManager.default.createFile(atPath: mark, contents: nil) }

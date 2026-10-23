@@ -10,6 +10,7 @@ extension Model {
         let next = sets[(idx + 1) % sets.count]
         var t = (try? String(contentsOfFile: optionsPath(exe), encoding: .utf8)) ?? Model.optionsTemplate
         t = t.components(separatedBy: "\n").filter { !$0.hasPrefix("DRIVERS=") }.joined(separator: "\n") + "\nDRIVERS=\(next.1.joined(separator: ","))\n"
+        snapshot("before driver switch: \(appName(exe)) → \(next.0)")
         saveOptions(exe, t); log += "Bisect: \(appName(exe)) now uses \(next.0) (saved in its Options; remove the DRIVERS line to go back to automatic). Launching…\n"
         launch(exe)
     }

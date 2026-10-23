@@ -9,7 +9,7 @@ let updater = SPUStandardUpdaterController(startingUpdater: !isTestBuild, update
     init() {
         enterTestModeIfNeeded()   // first, before any path is computed
         let a = CommandLine.arguments
-        let modes = ["--settings", "--setup", "--session-end", "--troubleshoot", "--repair", "--input", "--find", "--status", "--check", "--update", "--launch", "--tune", "--tunesteam", "--newbottle", "--accept-d3dmetal", "--snapshot", "--rollback", "--importables", "--import", "--willitrun", "--bugreport", "--hints", "--offline", "--compress", "--shaders", "--volumes", "--offlineexe", "--uslayout", "--hudocr", "--saves", "--mods", "--addmod", "--mod", "--rumble", "--padmode", "--procs", "--clean-driver-copies", "--sweep-registry", "--tree-hash", "--install-d3dmetal", "--print-env", "--install-runtime"]   // --launch <bottle> <exe> [seconds] | --wait [max seconds]   // --check <bottle> <exe>: dry-run of the launch check
+        let modes = ["--settings", "--setup", "--session-end", "--troubleshoot", "--repair", "--input", "--find", "--status", "--check", "--update", "--launch", "--tune", "--tunesteam", "--newbottle", "--accept-d3dmetal", "--snapshot", "--rollback", "--importables", "--import", "--willitrun", "--bugreport", "--hints", "--offline", "--compress", "--shaders", "--volumes", "--offlineexe", "--uslayout", "--hudocr", "--saves", "--mods", "--addmod", "--mod", "--rumble", "--padmode", "--procs", "--clean-driver-copies", "--sweep-registry", "--tree-hash", "--install-d3dmetal", "--print-env", "--install-runtime", "--snapshots", "--bisect", "--cleanup"]   // --launch <bottle> <exe> [seconds] | --wait [max seconds]   // --check <bottle> <exe>: dry-run of the launch check
         guard let i = a.firstIndex(where: { modes.contains($0) }) else { return }
         cliMode = true
         let m = Model()
@@ -55,7 +55,13 @@ let updater = SPUStandardUpdaterController(startingUpdater: !isTestBuild, update
         case "--volumes": m.log += (m.externalVolumes().isEmpty ? "no writable external volumes" : m.externalVolumes().joined(separator: "\n")) + "\n"
         case "--offlineexe": if i + 2 < a.count { m.log += (m.offlineExe(a[i + 2]) ?? "no offline launcher found") + "\n" }
         case "--compress": if i + 2 < a.count { m.compressGame(a[i + 2]); RunLoop.main.run(until: Date().addingTimeInterval(120)) }
-        case "--rollback": if let s = m.snapshots().first { m.rollback(to: s.path); RunLoop.main.run(until: Date().addingTimeInterval(40)) } else { m.log += "no snapshots\n" }
+        case "--rollback":   // --rollback <bottle> [stamp]: the newest snapshot unless a stamp is given; returns when the rollback is done
+            if let s = m.snapshots().first(where: { a.count <= i + 2 || $0.when == a[i + 2] }) {
+                m.rollback(to: s.path); let t0 = Date(); repeat { RunLoop.main.run(until: Date().addingTimeInterval(0.5)) } while m.busy && Date().timeIntervalSince(t0) < 60
+            } else { m.log += "no snapshots\n" }
+        case "--cleanup": m.log += cleanUp(bottles: m.bottles)   // what the daily housekeeping does
+        case "--snapshots": for s in m.snapshots() { m.log += "snapshot \(s.when)  \(s.reason)\n" }; m.log += "disk held only by snapshots: \(Model.snapshotDiskUse(m.selected)) bytes\n"
+        case "--bisect": if i + 2 < a.count { m.bisect(a[i + 2]); RunLoop.main.run(until: Date().addingTimeInterval(3)) }
         case "--importables": m.log += m.importableBottles().map { "\($0.label)\t\($0.path)" }.joined(separator: "\n") + "\n"
         case "--import": if i + 3 < a.count { m.importBottle(a[i + 2], as: a[i + 3]); RunLoop.main.run(until: Date().addingTimeInterval(60)) }
         case "--tune": if i + 2 < a.count { m.log += m.tuneUnreal(a[i + 2]) ?? "nothing to tune (no settings file yet, or already tuned)\n" }

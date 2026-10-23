@@ -17,6 +17,7 @@ struct ContentView: View {
     @State var wirLink = ""
     @State var showImport = false
     @State var rollbackTarget: String? = nil
+    @State var snapUse: Int64? = nil      // bytes only the snapshots hold, measured in the background while the sheet is up
     @State var loginStore: String? = nil   // "epic" / "gog" while the sign-in sheet is up
     @State var loginCode = ""
     var body: some View {
@@ -144,7 +145,7 @@ struct ContentView: View {
                     Button("Troubleshoot") { m.troubleshoot() }.controlSize(.small)
                     Button("Repair") { m.repair() }.controlSize(.small).disabled(m.selected.isEmpty || m.busy)
                     Button("Clean up") { m.runCleanUp() }.controlSize(.small).disabled(m.busy)
-                        .help("Removes temp files, crash dumps, old logs, used installers and download caches. Keeps one previous version of each driver and engine and the two newest safety clones. Runs by itself once a day.")
+                        .help("Removes temp files, crash dumps, old logs, used installers and download caches. Keeps one previous version of each driver and engine and the newest 3 snapshots of each bottle. Runs by itself once a day.")
                         .help("Kills stuck Wine processes and restores the bottle defaults: SDL controllers, 96 DPI, Steam overrides.")
                 }
                 ScrollView { Text(m.log).font(.system(.caption, design: .monospaced)).frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled) }

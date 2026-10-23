@@ -149,6 +149,7 @@ extension Model {
             // Store clients (Epic's launcher imports d3d12 for its UI) don't count: they run on their own fixed driver set.
             let needs12 = programs.contains { readiness[$0]?.dx12 == true && storeDrivers($0) == nil }, marker = dx12Marker(selected)
             if needs12 != FileManager.default.fileExists(atPath: marker), bottle == selected, !cliMode {   // CLI runs see a partial program list; never flip the bottle (and restart Steam) from there
+                snapshot("before driver switch: \(needs12 ? "d3dmetal" : "dxmt") for Direct3D 10/11")
                 if needs12 { FileManager.default.createFile(atPath: marker, contents: nil) } else { try? FileManager.default.removeItem(atPath: marker) }
                 log += needs12 ? "A Direct3D 12 game is installed: this bottle now runs d3dmetal for Direct3D 10/11/12.\n" : "No Direct3D 12 game left: back to dxmt for Direct3D 10/11.\n"
                 loadSettings(); for p in programs { readiness[p] = launchNeeds(p) }

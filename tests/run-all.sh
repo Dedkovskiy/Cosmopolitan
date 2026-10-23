@@ -15,7 +15,7 @@ run() {   # run NAME COMMAND…
   grep -E '^(ok|PASS|FAIL|note|tripwire|TRIPWIRE|native tests|decision tests|fuzz)|exited with code|exit [0-9-]+ after|still running after|passed \(|ERROR|Abort|AddressSanitizer|Traceback|Killed|Segmentation|terminating' "$L/$name.log" | sed 's/^/   /'
 }
 run native            ./native/run.sh ${1:-60}
-for t in tripwire_rules launch_wait repair_scope tripwire_setup repair_lock dotnet_new_bottle driver_copies registry_ledger pins d3dmetal_versions battery_cap runtimes; do
+for t in tripwire_rules launch_wait snapshots repair_scope tripwire_setup repair_lock dotnet_new_bottle driver_copies registry_ledger pins d3dmetal_versions battery_cap runtimes; do
   run $t ./safety/$t.sh
 done
 run stress            ./stress/run.sh

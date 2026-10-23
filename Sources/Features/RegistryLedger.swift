@@ -94,7 +94,9 @@ extension Model {
         return m
     }
     nonisolated static func applyRegistrySweep(_ bottle: String, _ wanted: [String: Set<String>]) -> [String] {   // slow Wine calls: off the main actor
-        wanted.sorted { $0.key < $1.key }.flatMap { pruneRegistry(bottle, exe: $0.key, wanted: $0.value) }
+        let doomed = ledger(bottle).contains { e in e.owner == "launch" && wanted[e.exe.lowercased()].map { !$0.contains(e.key + "|" + e.name) } == true }
+        if doomed { logToFile(snapshot(bottle, "before registry sweep").note) }
+        return wanted.sorted { $0.key < $1.key }.flatMap { pruneRegistry(bottle, exe: $0.key, wanted: $0.value) }
     }
     func sweepRegistry(_ bottle: String) -> [String] { Model.applyRegistrySweep(bottle, registryWanted(bottle)) }
 }

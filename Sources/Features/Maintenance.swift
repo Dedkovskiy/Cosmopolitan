@@ -2,7 +2,7 @@ import Foundation
 
 // Housekeeping, automatic once a day and on the "Clean up" button. Removes what is never needed again (temp files, crash dumps,
 // rotated logs, store installers, applied update staging, old download caches) and keeps exactly one previous version of
-// everything that can be rolled back to: drivers (<name>.old), Wine engines (active + one other), bottle safety clones (newest two).
+// everything that can be rolled back to: drivers (<name>.old), Wine engines (active + one other). Bottle snapshots: the newest 3 per bottle.
 // Never touches games, saves, settings, the active engine or the current drivers.
 func cleanUp(bottles: [String]) -> String {
     let fm = FileManager.default
@@ -36,9 +36,8 @@ func cleanUp(bottles: [String]) -> String {
         if fm.fileExists(atPath: "\(c)/ProgramData/Epic/EpicGamesLauncher/Data/Launcher.manifest"), age(staged) > 86400 { remove(staged) }
     }
 
-    // Safety clones: keep the newest two (Repair, runtime installs and overrides make new ones before they change anything).
-    let clones = ((try? fm.contentsOfDirectory(atPath: bottlesDir)) ?? []).filter { $0.hasPrefix(".auto-") }.sorted()
-    for c in clones.dropLast(2) { remove("\(bottlesDir)/\(c)", "older safety clone \(c)") }
+    // Snapshots: the newest 3 of each bottle (item 26; this used to keep the newest two of all bottles together).
+    for b in bottles { for n in Model.pruneSnapshots(b) { lines.append("older snapshot \(n)") } }
 
     // Engines: the active one plus one other (the most recently installed) as the previous version.
     let active = ((wineBin as NSString).deletingLastPathComponent as NSString).deletingLastPathComponent   // …/engines/<name>/wswine.bundle
