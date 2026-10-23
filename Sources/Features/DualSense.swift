@@ -1,4 +1,5 @@
 import SwiftUI
+import GameController
 
 // DualSense "native" mode per game. Two ways a game can see the pad, and Wine's HID bus can only do one at a time per bottle:
 //  • xinput (default): winebus hides raw HID (DisableHidraw=1) and SDL presents an Xbox-style pad → every game gets sticks, buttons, rumble.
@@ -7,6 +8,22 @@ import SwiftUI
 //    Games without that support then see only a DirectInput pad (no XInput), which is why this is a per-game switch (Options DUALSENSE=native).
 // The bus driver reads the setting when the prefix starts, so changing it means restarting Steam (the app does that) before the launch.
 extension Model {
+    // Item 33: a gamepad that connects is switched on for games: the bottle's controller bus is set for SDL pads (DisableHidraw=1, SDL on)
+    // if it isn't, which used to need Repair. Left alone while a game that asked for DualSense native mode is running.
+    func controllerConnected(_ name: String) {
+        updateStatus(); guard !selected.isEmpty else { return }
+        let env = launchEnv(selected).map { "\($0.key)='\($0.value)'" }.joined(separator: " "), bus = "HKLM\\System\\CurrentControlSet\\Services\\winebus"
+        let sdlOff = sh("env \(env) WINEDEBUG=-all '\(wineBin)' reg query '\(bus)' /v 'Enable SDL' 2>/dev/null | tr -d '\\r'").contains("0x0")
+        let native = library.contains { bottleOf($0) == selected && options($0)["DUALSENSE"]?.lowercased() == "native" && isRunning(winPath($0)) }
+        guard !native, !hidrawDisabled() || sdlOff else { log += "Controller \(name) connected.\n"; return }
+        _ = sh("env \(env) '\(wineBin)' reg add '\(bus)' /v DisableHidraw /t REG_DWORD /d 1 /f >/dev/null 2>&1; env \(env) '\(wineBin)' reg add '\(bus)' /v 'Enable SDL' /t REG_DWORD /d 1 /f >/dev/null 2>&1")
+        log += "Controller \(name) connected and switched on for games in \(selected).\n"; logToFile("Controller \(name) connected and switched on for games in \(selected).\n"); updateStatus()
+    }
+    func watchControllers() {
+        NotificationCenter.default.addObserver(forName: .GCControllerDidConnect, object: nil, queue: .main) { [weak self] n in
+            let name = (n.object as? GCController)?.vendorName ?? "gamepad"; Task { @MainActor in self?.controllerConnected(name) }
+        }
+    }
     // Live value via reg query (system.reg on disk lags behind while a wineserver is running).
     func hidrawDisabled() -> Bool {
         let env = launchEnv(selected).map { "\($0.key)='\($0.value)'" }.joined(separator: " ")

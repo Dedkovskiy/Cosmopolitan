@@ -461,6 +461,8 @@ Each item has its own commit and test (`tests/safety/<name>.sh`, all in `tests/r
 
 **32 Battery profile.** The 60 fps cap and lighter DXMT rendering apply on battery, in Low Power Mode (`isLowPowerModeEnabled`) and under serious thermal pressure; `--status` names the reason.
 
+**33 Controller on connect.** A `GCControllerDidConnect` sets the bottle's controller bus for SDL pads (DisableHidraw 1, SDL on) when it isn't, checked live with `reg query` (system.reg lags while Wine runs); left alone while a game in DualSense native mode runs.
+
 ## Sources
 
 **Apple Read Me files** (primary sources on this Mac, quoted verbatim above):

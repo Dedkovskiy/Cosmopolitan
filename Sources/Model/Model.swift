@@ -178,6 +178,7 @@ import Network
         checkDriverUpdates()
         if !cliMode { dailyCleanUp(); watchNetwork(); Task.detached(priority: .background) { _ = Model.refreshAwacy(); _ = Model.refreshLudusavi() }   // lists, daily / weekly
             Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in Task { @MainActor in self?.backupBeforeUpdates() } }   // saves before a Steam update
+            watchControllers()   // item 33
             if setupNeeded && UserDefaults.standard.bool(forKey: "onboardingDone") { showSetup = true } }
         autostart()
         // Pad on/off and driver folders change outside the app; re-check every 5 s (one ioreg call, ~30 ms).
