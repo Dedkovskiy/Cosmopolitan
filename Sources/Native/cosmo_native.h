@@ -75,6 +75,12 @@ cosmo_decision cosmo_fallback(const cosmo_decision_input *in, int32_t crashed) C
 enum { COSMO_NEED_DOTNET = 1u << 0, COSMO_NEED_VCREDIST86 = 1u << 1, COSMO_NEED_VCREDIST64 = 1u << 2, COSMO_NEED_DIRECTX = 1u << 3 };
 typedef struct { uint32_t apis, needs; int32_t error; } cosmo_preflight_result;   // apis: COSMO_API_*; error 0 ok, 1 no input, 2 internal
 cosmo_preflight_result cosmo_preflight(const char *imports_csv, int32_t is32, int32_t clr) COSMO_NOEXCEPT;
+// ---- Anti-cheat (item 29): what was found (files in the game folder, community lists) and AreWeAntiCheatYet's status → a verdict. ----
+enum { COSMO_AC_EAC = 1u << 0, COSMO_AC_BATTLEYE = 1u << 1, COSMO_AC_KERNEL = 1u << 2 };
+typedef enum { COSMO_AWACY_UNKNOWN = 0, COSMO_AWACY_SUPPORTED, COSMO_AWACY_RUNNING, COSMO_AWACY_PLANNED, COSMO_AWACY_BROKEN, COSMO_AWACY_DENIED } cosmo_awacy;
+typedef enum { COSMO_ACR_NONE = 0, COSMO_ACR_KERNEL, COSMO_ACR_DENIED, COSMO_ACR_BROKEN, COSMO_ACR_ONLINE } cosmo_ac_reason;
+typedef struct { int32_t verdict, reason, error; } cosmo_ac_result;   // verdict: COSMO_USE (none known), COSMO_ASK (online likely broken), COSMO_BLOCK
+cosmo_ac_result cosmo_anticheat(uint32_t found, int32_t awacy) COSMO_NOEXCEPT;
 
 #ifdef __cplusplus
 }

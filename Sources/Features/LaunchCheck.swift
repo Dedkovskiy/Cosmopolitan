@@ -102,7 +102,7 @@ extension Model {
             if !(c.verbs.isEmpty && c.overrides.isEmpty && c.env.isEmpty && c.args.isEmpty) { parts.append("applying community fixes" + (c.overrides.isEmpty ? "" : " (overrides: " + c.overrides.map { "\($0.0)=\($0.1)" }.joined(separator: ", ") + ")") + (c.args.isEmpty ? "" : " args " + c.args.joined(separator: " "))) }
             if !c.launchArgs.isEmpty { n.args += c.launchArgs.split(separator: " ").map(String.init) }
         }
-        if let v = antiCheatVerdict(acNames) { n.anticheat = v; parts.append(v.1) }
+        if let v = antiCheatVerdict(acNames, appid: steamGames[exe]?.id, name: steamGames[exe]?.name ?? appName(exe)) { n.anticheat = v; parts.append(v.1) }
         // §8.2 Untrusted executable: not installed by a store client. Warn, never block.
         if steamGames[exe] == nil, !exe.hasSuffix("/Steam/steam.exe"), !exe.contains("/drive_c/windows/"), !exe.contains("/Program Files/Windows NT/") {
             parts.append("not installed through a store — run only if you trust where it came from")

@@ -9,7 +9,7 @@ let updater = SPUStandardUpdaterController(startingUpdater: !isTestBuild, update
     init() {
         enterTestModeIfNeeded()   // first, before any path is computed
         let a = CommandLine.arguments
-        let modes = ["--settings", "--setup", "--session-end", "--troubleshoot", "--repair", "--input", "--find", "--status", "--check", "--update", "--launch", "--tune", "--tunesteam", "--newbottle", "--accept-d3dmetal", "--snapshot", "--rollback", "--importables", "--import", "--willitrun", "--bugreport", "--hints", "--offline", "--compress", "--shaders", "--volumes", "--offlineexe", "--uslayout", "--hudocr", "--saves", "--mods", "--addmod", "--mod", "--rumble", "--padmode", "--procs", "--clean-driver-copies", "--sweep-registry", "--tree-hash", "--install-d3dmetal", "--print-env", "--install-runtime", "--snapshots", "--bisect", "--cleanup", "--gog-signin", "--gog-redirect", "--steam-busy", "--steam-restart", "--highball-report"]   // --launch <bottle> <exe> [seconds] | --wait [max seconds]   // --check <bottle> <exe>: dry-run of the launch check
+        let modes = ["--settings", "--setup", "--session-end", "--troubleshoot", "--repair", "--input", "--find", "--status", "--check", "--update", "--launch", "--tune", "--tunesteam", "--newbottle", "--accept-d3dmetal", "--snapshot", "--rollback", "--importables", "--import", "--willitrun", "--bugreport", "--hints", "--offline", "--compress", "--shaders", "--volumes", "--offlineexe", "--uslayout", "--hudocr", "--saves", "--mods", "--addmod", "--mod", "--rumble", "--padmode", "--procs", "--clean-driver-copies", "--sweep-registry", "--tree-hash", "--install-d3dmetal", "--print-env", "--install-runtime", "--snapshots", "--bisect", "--cleanup", "--gog-signin", "--gog-redirect", "--steam-busy", "--steam-restart", "--highball-report", "--awacy-refresh"]   // --launch <bottle> <exe> [seconds] | --wait [max seconds]   // --check <bottle> <exe>: dry-run of the launch check
         guard let i = a.firstIndex(where: { modes.contains($0) }) else { return }
         cliMode = true
         let m = Model()
@@ -70,6 +70,7 @@ let updater = SPUStandardUpdaterController(startingUpdater: !isTestBuild, update
             m.log += "pending restart: \(m.pendingSteamRestart.map { "yes (\($0.busy))" } ?? "no")\n"
         }
         case "--highball-report": if i + 2 < a.count { m.log += (m.reportURL(a[i + 2]).flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "body" }?.value } ?? "no report") + "\n" }   // the prefilled text, nothing opened
+        case "--awacy-refresh": m.log += Model.refreshAwacy(force: true) + "\n"
         case "--snapshots": for s in m.snapshots() { m.log += "snapshot \(s.when)  \(s.reason)\n" }; m.log += "disk held only by snapshots: \(Model.snapshotDiskUse(m.selected)) bytes\n"
         case "--bisect": if i + 2 < a.count { m.bisect(a[i + 2]); RunLoop.main.run(until: Date().addingTimeInterval(3)) }
         case "--importables": m.log += m.importableBottles().map { "\($0.label)\t\($0.path)" }.joined(separator: "\n") + "\n"

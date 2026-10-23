@@ -8,6 +8,9 @@
 //     the user's own pin crashed → ask with that proposal; none left → incompatible. The caller retries once, never more.
 // Pre-flight (cosmo_preflight, item 28): Direct3D/DirectDraw imports → API bits; a .NET header or mscoree.dll → Wine Mono; a Visual C++
 // 2015–2022 DLL → that runtime in the program's bitness; a DirectX June 2010 DLL (d3dx*, xaudio2_*, xinput1_*, …) → DirectX.
+// Anti-cheat (cosmo_anticheat, item 29), first match wins: kernel anti-cheat → block · AreWeAntiCheatYet "Denied" (the developer refuses
+// Wine/Proton) → block · "Broken" → block · EAC/BattlEye found, or "Supported"/"Running"/"Planned" → ask: online play likely fails on a
+// Mac, whose Wine has no anti-cheat runtime even where Proton does · nothing known → use.
 // Pure: plain values in, plain values out; no I/O, no globals; nothing throws across the boundary.
 #include "cosmo_native.h"
 #include <cstdlib>
@@ -116,8 +119,24 @@ cosmo_preflight_result preflight(const char *csv, bool is32, bool clr) {
     }
     return r;
 }
+cosmo_ac_result anticheat(uint32_t found, int awacy) {
+#ifdef COSMO_TEST_HOOKS
+    if (getenv("COSMO_NATIVE_TEST_THROW")) throw std::bad_alloc();
+#endif
+    cosmo_ac_result r{};
+    auto set = [&](int v, int why) { r.verdict = v; r.reason = why; return r; };
+    if (found & COSMO_AC_KERNEL) return set(COSMO_BLOCK, COSMO_ACR_KERNEL);
+    if (awacy == COSMO_AWACY_DENIED) return set(COSMO_BLOCK, COSMO_ACR_DENIED);
+    if (awacy == COSMO_AWACY_BROKEN) return set(COSMO_BLOCK, COSMO_ACR_BROKEN);
+    if ((found & (COSMO_AC_EAC | COSMO_AC_BATTLEYE)) || awacy == COSMO_AWACY_SUPPORTED || awacy == COSMO_AWACY_RUNNING || awacy == COSMO_AWACY_PLANNED)
+        return set(COSMO_ASK, COSMO_ACR_ONLINE);
+    return set(COSMO_USE, COSMO_ACR_NONE);
+}
 } // namespace
 
+extern "C" cosmo_ac_result cosmo_anticheat(uint32_t found, int32_t awacy) noexcept {
+    try { return anticheat(found, awacy); } catch (...) { cosmo_ac_result r{}; r.error = 2; return r; }
+}
 extern "C" cosmo_preflight_result cosmo_preflight(const char *imports_csv, int32_t is32, int32_t clr) noexcept {
     cosmo_preflight_result r{};
     if (!imports_csv) { r.error = 1; return r; }

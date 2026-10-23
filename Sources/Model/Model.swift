@@ -176,7 +176,8 @@ import Network
     init() {
         refresh()
         checkDriverUpdates()
-        if !cliMode { dailyCleanUp(); watchNetwork(); if setupNeeded && UserDefaults.standard.bool(forKey: "onboardingDone") { showSetup = true } }
+        if !cliMode { dailyCleanUp(); watchNetwork(); Task.detached(priority: .background) { _ = Model.refreshAwacy() }   // anti-cheat list, at most daily
+            if setupNeeded && UserDefaults.standard.bool(forKey: "onboardingDone") { showSetup = true } }
         autostart()
         // Pad on/off and driver folders change outside the app; re-check every 5 s (one ioreg call, ~30 ms).
         Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in Task { @MainActor in self?.updateStatus() } }

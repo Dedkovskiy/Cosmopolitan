@@ -111,8 +111,20 @@ TEST(preflight_boundary) { CHECK(cosmo_preflight(nullptr, 0, 0).error == 1, "nul
     setenv("COSMO_NATIVE_TEST_THROW", "1", 1); auto r = cosmo_preflight("d3d11.dll", 0, 0); unsetenv("COSMO_NATIVE_TEST_THROW");
     CHECK(r.error == 2, "an exception inside must come back as error 2 (got %d)", r.error); }
 
+// Anti-cheat rules (item 29): one test per rule and the precedence between them.
+static cosmo_ac_result ac(uint32_t f, int a) { return cosmo_anticheat(f, a); }
+TEST(ac_kernel_blocks_whatever_awacy_says) { auto r = ac(COSMO_AC_KERNEL | COSMO_AC_EAC, COSMO_AWACY_SUPPORTED);
+    CHECK(r.verdict == COSMO_BLOCK && r.reason == COSMO_ACR_KERNEL, "verdict %d reason %d", r.verdict, r.reason); }
+TEST(ac_denied_and_broken_block) { CHECK(ac(COSMO_AC_EAC, COSMO_AWACY_DENIED).reason == COSMO_ACR_DENIED && ac(0, COSMO_AWACY_DENIED).verdict == COSMO_BLOCK, "denied");
+    CHECK(ac(COSMO_AC_BATTLEYE, COSMO_AWACY_BROKEN).reason == COSMO_ACR_BROKEN && ac(0, COSMO_AWACY_BROKEN).verdict == COSMO_BLOCK, "broken"); }
+TEST(ac_user_mode_or_listed_asks) { CHECK(ac(COSMO_AC_EAC, COSMO_AWACY_UNKNOWN).verdict == COSMO_ASK && ac(COSMO_AC_BATTLEYE, 0).reason == COSMO_ACR_ONLINE, "files only");
+    CHECK(ac(0, COSMO_AWACY_SUPPORTED).verdict == COSMO_ASK && ac(0, COSMO_AWACY_RUNNING).verdict == COSMO_ASK && ac(0, COSMO_AWACY_PLANNED).verdict == COSMO_ASK, "listed as working on Proton"); }
+TEST(ac_nothing_known_uses) { auto r = ac(0, COSMO_AWACY_UNKNOWN); CHECK(r.verdict == COSMO_USE && r.reason == COSMO_ACR_NONE, "verdict %d", r.verdict); }
+TEST(ac_boundary) { setenv("COSMO_NATIVE_TEST_THROW", "1", 1); auto r = ac(COSMO_AC_EAC, 0); unsetenv("COSMO_NATIVE_TEST_THROW");
+    CHECK(r.error == 2, "an exception inside must come back as error 2 (got %d)", r.error); }
+
 int main() {
     if (failures) printf("decision tests: %d FAILED of %d\n", failures, tests);
-    else printf("decision tests: all %d passed (rows 1-12, precedence, scenario A, pre-flight, boundaries)\n", tests);
+    else printf("decision tests: all %d passed (rows 1-12, precedence, scenario A, pre-flight, anti-cheat, boundaries)\n", tests);
     return failures != 0;
 }
