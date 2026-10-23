@@ -36,9 +36,9 @@ testenv_init() {
     [[ -f "$REAL_SUPPORT/d3dmetal-license.json" ]] && cp "$REAL_SUPPORT/d3dmetal-license.json" "$TS/"
   fi
   mkdir -p "$TS/cache"; for f in "$TESTENV_REPO"/.cache/*(N.) "$REAL_SUPPORT"/cache/*(N.); do cp -c "$f" "$TS/cache/" 2>/dev/null; done   # pinned downloads (hash-checked on use)
-  # Sandbox proof, at the start of every suite run: opening your real log and every bottle's user.reg for writing is refused inside the
+  # Sandbox proof, at the start of every suite run: opening your real log, every bottle's user.reg and Homebrew's brew for writing is refused inside the
   # test sandbox (the probe appends zero bytes, so even a failed proof changes nothing), and the same probe works in the throwaway folder.
-  local probe=() p; [[ -f "$REAL_LOG" ]] && probe+=("$REAL_LOG"); probe+=("$REAL_SUPPORT"/bottles/*/user.reg(N.))
+  local probe=() p; [[ -f "$REAL_LOG" ]] && probe+=("$REAL_LOG"); probe+=("$REAL_SUPPORT"/bottles/*/user.reg(N.)); [[ -f /opt/homebrew/bin/brew ]] && probe+=(/opt/homebrew/bin/brew)
   for p in $probe; do sandbox-exec -p "$(tw_sandbox_profile)" /bin/sh -c ': >> "$1"' sh "$p" 2>/dev/null && { print -u2 "FAIL: sandbox proof: a write to $p was allowed"; return 1; }; done
   sandbox-exec -p "$(tw_sandbox_profile)" /bin/sh -c ': >> "$1"' sh "$T/sandbox-probe" || { print -u2 "FAIL: sandbox proof: the probe can't write in the throwaway folder either"; return 1; }
   print -u2 "ok: sandbox proof: writes refused for ${#probe} real files (${(j:, :)${probe[@]#$REAL_HOME/}}), allowed in the throwaway folder"
@@ -135,7 +135,7 @@ tw_check() {
 }
 # Sandbox profile that makes writes to your real Cosmopolitan data impossible for the test and everything it starts.
 tw_sandbox_profile() {
-  print "(version 1)(allow default)(deny file-write* (subpath \"$REAL_SUPPORT\") (literal \"$REAL_LOG\") (subpath \"$REAL_HOME/Applications/Cosmopolitan Apps\") (subpath \"$REAL_HOME/Library/Application Support/Sikarugir\"))"
+  print "(version 1)(allow default)(deny file-write* (subpath \"$REAL_SUPPORT\") (literal \"$REAL_LOG\") (subpath \"$REAL_HOME/Applications/Cosmopolitan Apps\") (subpath \"$REAL_HOME/Library/Application Support/Sikarugir\") (subpath \"/opt/homebrew\"))"
 }
 
 testenv_cleanup() {

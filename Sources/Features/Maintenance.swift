@@ -51,7 +51,7 @@ func cleanUp(bottles: [String]) -> String {
 
     // Download caches outside the app that only its own tools fill.
     clear(NSHomeDirectory() + "/.cache/winetricks", olderThanDays: 30)
-    if fm.fileExists(atPath: "/opt/homebrew/bin/brew") {
+    if !isTestBuild, fm.fileExists(atPath: "/opt/homebrew/bin/brew") {   // never from a test build: brew cleanup acts on the real Homebrew
         let before = size(NSHomeDirectory() + "/Library/Caches/Homebrew")
         _ = shell("/opt/homebrew/bin/brew cleanup -s --prune=30 >/dev/null 2>&1")
         freedKB += max(0, before - size(NSHomeDirectory() + "/Library/Caches/Homebrew"))
