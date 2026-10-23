@@ -24,7 +24,10 @@ struct SettingsView: View {
                 ("DOSBox", find("dosbox"), "dosbox-staging", "runs DOS games"),
                 ("Legendary", find("legendary"), "pipx:legendary-gl", "Epic Games library and downloads"),
                 ("lgogdownloader", find("lgogdownloader"), "lgogdownloader", "GOG downloads for Windows-only games"),
-                ("ClamAV", find("clamscan"), "clamav", "scans downloaded programs for malware")]
+                // Only with its virus database: clamscan without one finds nothing and fails every scan (freshclam never ran).
+                ("ClamAV", find("clamscan").flatMap { p in ["/opt/homebrew/var/lib/clamav", "/usr/local/var/lib/clamav"].contains { d in
+                    ["daily.cvd", "daily.cld"].contains { FileManager.default.fileExists(atPath: "\(d)/\($0)") } } ? p : nil },
+                 "clamav", "scans downloaded programs for malware (Install also gets its virus database)")]
     }
     var engines: [String] {
         ((try? FileManager.default.contentsOfDirectory(atPath: support + "/engines")) ?? [])
@@ -86,7 +89,9 @@ struct SettingsView: View {
 
     func install(_ name: String, _ formula: String) {
         installing = name
-        let cmd = formula.hasPrefix("pipx:") ? "command -v pipx >/dev/null || brew install pipx; pipx install \(formula.dropFirst(5))" : "brew install \(formula)"
+        // ClamAV: also its database, with ClamAV's own freshclam (configured from Homebrew's sample, whose "Example" line disables it).
+        let clam = "brew install clamav && c=\"$(brew --prefix)/etc/clamav\" && { [ -f \"$c/freshclam.conf\" ] || sed 's/^Example/#Example/' \"$c/freshclam.conf.sample\" > \"$c/freshclam.conf\"; } && freshclam"
+        let cmd = formula.hasPrefix("pipx:") ? "command -v pipx >/dev/null || brew install pipx; pipx install \(formula.dropFirst(5))" : formula == "clamav" ? clam : "brew install \(formula)"
         Task.detached {
             _ = shell("export PATH=/opt/homebrew/bin:/usr/local/bin:$PATH; \(cmd) >/dev/null 2>&1")
             await MainActor.run { installing = nil; tools = SettingsView.toolStatus() }
