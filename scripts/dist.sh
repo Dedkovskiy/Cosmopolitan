@@ -1,6 +1,7 @@
 #!/bin/sh
 # Packs Cosmopolitan for another Mac: the app + engine + drivers + codecs (no bottles). Output: dist/Cosmopolitan-<date>.tgz
-# On the other Mac: untar, run ./install.sh, then right-click Cosmopolitan.app → Open once (ad-hoc signature, no notarization).
+# On the other Mac: untar and run ./install.sh. It clears the download quarantine, so the app (ad-hoc signed, not notarized) opens
+# without the Gatekeeper prompt; right-click › Open no longer bypasses that prompt on macOS 15 and later.
 set -e; cd "$(dirname "$0")/.."; scripts/build.sh
 S="$HOME/Library/Application Support/Cosmopolitan"; D="dist/stage"; rm -rf dist; mkdir -p "$D/support/engines"
 cp -cR Cosmopolitan.app "$D/"
@@ -20,7 +21,7 @@ grep -rl "/Users/[^/]*/Library/Application Support/Cosmopolitan" "$S/engines" 2>
 find "$S/engines" -type l | while read l; do t=$(readlink "$l"); case "$t" in /Users/*) ln -sfn "$(echo "$t" | sed "s|/Users/[^/]*/Library/Application Support/Cosmopolitan|$S|")" "$l";; esac; done
 rm -rf /Applications/Cosmopolitan.app; cp -R Cosmopolitan.app /Applications/
 xattr -dr com.apple.quarantine /Applications/Cosmopolitan.app "$S/engines" 2>/dev/null || true
-echo "Installed. Open /Applications/Cosmopolitan.app (right-click → Open the first time)."
+echo "Installed. Open /Applications/Cosmopolitan.app."
 I
 chmod +x "$D/install.sh"
 OUT="dist/Cosmopolitan-$(date +%Y%m%d).tgz"; tar -czf "$OUT" -C "$D" .; rm -rf "$D"
