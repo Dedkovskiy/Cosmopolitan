@@ -467,6 +467,8 @@ Each item has its own commit and test (`tests/safety/<name>.sh`, all in `tests/r
 
 **35 Health check.** At start: template-sourced drivers against their pinned tree hashes (a driver updated through Update… keeps `<name>.old` and is the user's), Wine Mono in every bottle, no ledger settings of programs that are gone, at least 10 GB free. Problems show in the Library with Fix; Fix this game fixes its bottle's first. Putting a driver back asks first and keeps the current copy as `.old`.
 
+**36 Cleanup suggestions.** Shader caches of games no longer installed, leftover installers, Windows and user temp files, biggest first, in Settings; only the chosen items go, after a confirmation (the CLI needs `--yes`). A bottle's temp folders are kept while a program runs in it (an installer may still need them).
+
 ## Sources
 
 **Apple Read Me files** (primary sources on this Mac, quoted verbatim above):

@@ -43,6 +43,7 @@ struct SettingsView: View {
                 Toggle("Free up space by itself once a day", isOn: $dailyCleanup)
                 Text("Removes temporary files, crash dumps, used installers and old download caches. Games and saves are never touched.").font(.caption).foregroundStyle(.secondary)
             }
+            Section("Could go (biggest first)") { CleanupList(m: m) }   // item 36: you choose, then confirm
             Section("Setup") {
                 Button("Run setup again") { UserDefaults.standard.set(0, forKey: "onboardingStep"); onboardingDone = false }
                 Toggle("Start Steam together with Cosmopolitan", isOn: $autostartSteam)
