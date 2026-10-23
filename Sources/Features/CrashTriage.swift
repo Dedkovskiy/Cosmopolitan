@@ -25,10 +25,12 @@ extension Model {
             if !t.contains("ROSETTA_ADVERTISE_AVX") { t += "\nROSETTA_ADVERTISE_AVX=1\n"; saveOptions(exe, t) }
             out += "  → ROSETTA_ADVERTISE_AVX=1 saved in this program's Options. Try again.\n"; log += out; return
         }
-        // A driver updated in the last 7 days is the prime suspect: roll it back and keep the new one aside.
+        // A driver updated in the last 7 days is the prime suspect: offer to roll it back (never without asking: it replaces what you
+        // installed), keeping the new one aside.
         for d in (try? fm.contentsOfDirectory(atPath: driversDir)) ?? [] where d.hasSuffix(".old") {
             let name = String(d.dropLast(4)), cur = "\(driversDir)/\(name)"
-            if let m = (try? fm.attributesOfItem(atPath: cur))?[.modificationDate] as? Date, Date().timeIntervalSince(m) < 7 * 86400 {
+            if let m = (try? fm.attributesOfItem(atPath: cur))?[.modificationDate] as? Date, Date().timeIntervalSince(m) < 7 * 86400,
+               ask("Go back to the previous \(name)?", "\(appName(exe)) closed right after starting, and \(name) was updated in the last 7 days. The new version is kept aside.", yes: "Go back") {
                 _ = sh("rm -rf '\(cur).bad'; mv '\(cur)' '\(cur).bad' && mv '\(driversDir)/\(d)' '\(cur)'")
                 out += "  → driver \(name) was updated recently; rolled back to the previous version (new one kept as \(name).bad). Try again.\n"
                 log += out; updateStatus(); return

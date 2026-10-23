@@ -25,7 +25,8 @@ extension Model {
             if block { self.busy = false }
             self.log += code == 0 ? "[done]\n" : "[failed: exit \(code)]\n"
             if let exe { self.launchExits[exe] = code }
-            if let exe, code != 0, Date().timeIntervalSince(started) < 60 { self.triage(exe, code) }   // died right away: look for a known cause
+            // Died right away: within 30 s, one retry with the next driver (item 27); otherwise look for a known cause.
+            if let exe, code != 0, Date().timeIntervalSince(started) < 60, !(Date().timeIntervalSince(started) < 30 && self.driverFallback(exe, code)) { self.triage(exe, code) }
             then?(); self.refresh() } }
         do { try p.run() } catch { log += "Failed: \(error)\n"; busy = false }
     }

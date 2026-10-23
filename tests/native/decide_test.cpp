@@ -77,8 +77,26 @@ TEST(boundary_no_input_and_exceptions) { CHECK(cosmo_decide(nullptr).error == 1,
     setenv("COSMO_NATIVE_TEST_THROW", "1", 1); auto in = base(); auto d = cosmo_decide(&in); unsetenv("COSMO_NATIVE_TEST_THROW");
     CHECK(d.error == 2, "an exception inside must come back as error 2 (got %d)", d.error); }
 
+// Row 12, driver fallback (item 27): after a crash within 30 s, the next of DXMT → D3DMetal → DXVK; the user's own pin is asked about.
+TEST(row12_dxmt_crash_falls_to_d3dmetal) { auto in = base(); in.serves[COSMO_BE_D3DMETAL] = COSMO_API_D3D11 | COSMO_API_D3D12;
+    auto d = cosmo_fallback(&in, COSMO_BE_DXMT); CHECK(d.verdict == COSMO_USE && d.row == 12 && d.backend == COSMO_BE_D3DMETAL, "verdict %d row %d backend %d", d.verdict, d.row, d.backend); }
+TEST(row12_skips_what_is_not_installed) { auto in = base();
+    auto d = cosmo_fallback(&in, COSMO_BE_DXMT); CHECK(d.verdict == COSMO_USE && d.backend == COSMO_BE_DXVK, "no D3DMetal: verdict %d backend %d", d.verdict, d.backend); }
+TEST(row12_skips_what_failed_here) { auto in = base(); in.serves[COSMO_BE_D3DMETAL] = COSMO_API_D3D11; in.failed_here[COSMO_BE_D3DMETAL] = 1;
+    auto d = cosmo_fallback(&in, COSMO_BE_DXMT); CHECK(d.verdict == COSMO_USE && d.backend == COSMO_BE_DXVK, "D3DMetal failed here: backend %d", d.backend); }
+TEST(row12_end_of_chain) { auto in = base(); in.serves[COSMO_BE_D3DMETAL] = COSMO_API_D3D11;
+    auto d = cosmo_fallback(&in, COSMO_BE_DXVK); CHECK(d.verdict == COSMO_INCOMPATIBLE && d.backend == COSMO_BE_NONE, "after DXVK: verdict %d backend %d", d.verdict, d.backend); }
+TEST(row12_d3d12_has_no_next) { auto in = base(); in.apis = COSMO_API_D3D12; in.serves[COSMO_BE_D3DMETAL] = COSMO_API_D3D11 | COSMO_API_D3D12;
+    auto d = cosmo_fallback(&in, COSMO_BE_D3DMETAL); CHECK(d.verdict == COSMO_INCOMPATIBLE && d.backend == COSMO_BE_NONE, "DXVK can't serve D3D12: verdict %d backend %d", d.verdict, d.backend); }
+TEST(row12_user_pin_is_asked_about) { auto in = base(); in.game_pin = COSMO_BE_DXMT;
+    auto d = cosmo_fallback(&in, COSMO_BE_DXMT);
+    CHECK(d.verdict == COSMO_ASK && d.backend == COSMO_BE_DXVK && d.noptions == 2 && d.options[0] == COSMO_BE_DXVK && d.options[1] == COSMO_BE_NONE, "verdict %d backend %d n %d", d.verdict, d.backend, d.noptions); }
+TEST(row12_boundary) { CHECK(cosmo_fallback(nullptr, COSMO_BE_DXMT).error == 1, "null input");
+    setenv("COSMO_NATIVE_TEST_THROW", "1", 1); auto in = base(); auto d = cosmo_fallback(&in, COSMO_BE_DXMT); unsetenv("COSMO_NATIVE_TEST_THROW");
+    CHECK(d.error == 2, "an exception inside must come back as error 2 (got %d)", d.error); }
+
 int main() {
     if (failures) printf("decision tests: %d FAILED of %d\n", failures, tests);
-    else printf("decision tests: all %d passed (rows 1-11, precedence, scenario A, boundary)\n", tests);
+    else printf("decision tests: all %d passed (rows 1-12, precedence, scenario A, boundary)\n", tests);
     return failures != 0;
 }

@@ -10,7 +10,7 @@ extension Model {
         **Mac:** \(chip), \(ram) GB, macOS \(ProcessInfo.processInfo.operatingSystemVersionString)
         **Launcher:** Cosmopolitan \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] ?? "?"), engine \(sh("'\(wineBin)' --version 2>/dev/null"))
         **Backend:** \(driverList(launchEnvRaw(), bottle: selected).joined(separator: " + "))\(readiness[exe]?.drivers.map { " (this game: \($0.joined(separator: " + ")))" } ?? "")
-        **Result:** <works / works with issues / does not start — please fill in>
+        \(fallbackNote(exe).map { "**Driver fallback:** \($0)\n" } ?? "")**Result:** <works / works with issues / does not start — please fill in>
         **Notes:** <fps, settings, crashes>
         """
         var c = URLComponents(string: "https://github.com/gauthierpiarrette/highball-db/issues/new")!

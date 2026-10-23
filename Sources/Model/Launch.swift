@@ -82,6 +82,7 @@ extension Model {
         log += powerHints()
         var need = prepare(exe)
         if options(exe)["DRIVERS"] == nil, let d = storeDrivers(exe) { need.drivers = d }   // store clients: DXMT set unless the user chose otherwise
+        launchedDrivers[exe] = need.drivers ?? driverList(launchEnvRaw(bottleOf(exe)), bottle: bottleOf(exe))
         for s in Store.allCases where storeExe(s) == exe { need.args += s.args; if s == .epic { finishEpicLauncherUpdate(exe) } }
         // A Steam game inherits Steam's environment, so a driver change OR per-game env from Options… needs Steam restarted with it.
         start(need, cmd, args, exe: exe, restartSteam: steamGames[exe] != nil && (need.drivers != nil || !need.env.isEmpty || need.restartSteam) && steamRunning())

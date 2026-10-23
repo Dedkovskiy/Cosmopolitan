@@ -449,6 +449,8 @@ Each item has its own commit and test (`tests/safety/<name>.sh`, all in `tests/r
 
 **40 Onboarding.** Silent checks first (chip, macOS, memory, free disk, Rosetta, Game Porting Toolkit, stores and games); This Mac only when limited (≤ 8 GB or < 30 GB free), Rosetta only when missing, Controller only when one is connected. Rosetta installs only after "Agree and Install", through macOS's administrator prompt. The toolkit is found on a mounted disk image and used only from the user's copy, with Apple's licence shown before accepting. The engine prepares in the background from the second screen; resume is by the saved screen; existing installs see "What's new" once. Store sign-ins chosen during onboarding open when the Library opens (a sheet can't present another sheet). Test builds get their own preferences domain per throwaway home (macOS keeps preferences per user, not per HOME).
 
+**27 Driver fallback.** Decision-table row 12 (`cosmo_fallback`, C++, with table tests): after a crash within 30 s, the next of DXMT → D3DMetal → DXVK that serves the game's main API and hasn't failed here; the user's own DRIVERS pin is asked about, never switched; none left → back to automatic. One retry per session. The working driver is written to the game's Options under a `# driver fallback:` line (with the drivers that crashed and the date) and appears in the prefilled compat report. Crash triage no longer rolls a recently updated driver back on its own: it asks.
+
 ## Sources
 
 **Apple Read Me files** (primary sources on this Mac, quoted verbatim above):
