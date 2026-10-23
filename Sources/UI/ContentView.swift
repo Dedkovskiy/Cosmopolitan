@@ -20,6 +20,8 @@ struct ContentView: View {
     @State var snapUse: Int64? = nil      // bytes only the snapshots hold, measured in the background while the sheet is up
     @State var loginStore: String? = nil   // "epic" / "gog" while the sign-in sheet is up
     @State var loginCode = ""
+    @State var loginBusy = false                          // GOG: lgogdownloader is trading the code for tokens
+    @State var loginResult: (ok: Bool, message: String)? = nil   // GOG: what the sheet shows after the sign-in
     var body: some View {
         HSplitView {
             VStack(alignment: .leading) {
@@ -161,6 +163,7 @@ struct ContentView: View {
         .sheet(isPresented: Binding(get: { m.showSetup && !showTerms }, set: { m.showSetup = $0 })) { setupSheet }
         .sheet(isPresented: $showD3DM) { d3dmetalSheet }
         .sheet(isPresented: Binding(get: { loginStore != nil }, set: { if !$0 { loginStore = nil } })) { storeLoginSheet }
+        .onAppear { if isTestBuild, ProcessInfo.processInfo.environment["COSMO_TEST_SHEET"] == "gog-login" { loginStore = "gog" } }   // screenshots of the sheet
         .sheet(isPresented: Binding(get: { optExe != nil }, set: { if !$0 { optExe = nil } })) { optionsSheet }
         .confirmationDialog("Delete bottle \"\(m.selected)\" and everything in it?", isPresented: $confirmDelete) {
             Button("Delete", role: .destructive) { m.deleteBottle() }

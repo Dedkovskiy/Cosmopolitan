@@ -224,10 +224,15 @@ extension Model {
     }
 
     // ---- GOG (lgogdownloader) ----
-    var lgog: String? { ["/opt/homebrew/bin/lgogdownloader", "/usr/local/bin/lgogdownloader"].first { FileManager.default.fileExists(atPath: $0) } }
-    func gogSignedIn() -> Bool {
-        lgog != nil && ((try? FileManager.default.attributesOfItem(atPath: NSHomeDirectory() + "/.config/lgogdownloader/galaxy_tokens.json"))?[.size] as? Int ?? 0) > 20
+    // lgogdownloader keeps the sign-in in ~/.config/lgogdownloader (it honours XDG_CONFIG_HOME): galaxy_tokens.json (OAuth access and
+    // refresh token) and cookies.txt, both mode 600. It has no Keychain support. The test build can use a stand-in (COSMO_TEST_LGOG).
+    var lgog: String? { Model.lgogPath }
+    nonisolated static var lgogPath: String? {
+        let t = isTestBuild ? ProcessInfo.processInfo.environment["COSMO_TEST_LGOG"] : nil
+        return (t.map { [$0] } ?? ["/opt/homebrew/bin/lgogdownloader", "/usr/local/bin/lgogdownloader"]).first { FileManager.default.isExecutableFile(atPath: $0) }
     }
+    nonisolated static func gogTokens() -> Bool { ((try? FileManager.default.attributesOfItem(atPath: NSHomeDirectory() + "/.config/lgogdownloader/galaxy_tokens.json"))?[.size] as? Int ?? 0) > 20 }
+    func gogSignedIn() -> Bool { lgog != nil && Model.gogTokens() }
     // GOG's native Mac client. Its package installs a privileged helper the client refuses to start without (an unpacked copy in
     // ~/Applications says "Essential components … are missing"), so the package runs through macOS's own administrator prompt.
     func installNativeGalaxy() {
@@ -241,11 +246,37 @@ extension Model {
     }
     func installLgog() { exec("/bin/sh", ["-c", "brew install lgogdownloader"], env: ["PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"]) { self.log += self.lgog == nil ? "lgogdownloader did not install; see the log above.\n" : "lgogdownloader installed. Stores… › Sign in to GOG.\n" } }
     // GOG's own login page (what lgogdownloader --browser-login prints); after login the browser lands on embed.gog.com/on_login_success?…code=…
-    static let gogLoginURL = URL(string: "https://auth.gog.com/auth?client_id=46899977096215655&redirect_uri=https%3A%2F%2Fembed.gog.com%2Fon_login_success%3Forigin%3Dclient&response_type=code&layout=default&brand=gog")!
-    func gogSignIn(redirectURL: String) {
-        guard let g = lgog else { return }
-        let u = redirectURL.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "'", with: "")
-        exec("/bin/sh", ["-c", "printf '%s\\n' '\(u)' | '\(g)' --browser-login"]) { gogOwned = []; self.scan(); if self.gogSignedIn() { self.log += "Signed in to GOG. Stores… › Install GOG game (the library takes a moment to load).\n" } }
+    // The test build can start from another page (COSMO_TEST_GOG_LOGIN_URL), e.g. one that redirects straight to a success address.
+    static var gogLoginURL: URL {
+        if isTestBuild, let s = ProcessInfo.processInfo.environment["COSMO_TEST_GOG_LOGIN_URL"], let u = URL(string: s) { return u }
+        return URL(string: "https://auth.gog.com/auth?client_id=46899977096215655&redirect_uri=https%3A%2F%2Fembed.gog.com%2Fon_login_success%3Forigin%3Dclient&response_type=code&layout=default&brand=gog")!
+    }
+    // The address GOG's login lands on carries the code: https://embed.gog.com/on_login_success?origin=client&code=…
+    nonisolated static func isGogRedirect(_ u: URL) -> Bool {
+        u.scheme == "https" && (u.host == "gog.com" || u.host?.hasSuffix(".gog.com") == true) && u.path.contains("on_login_success")
+            && URLComponents(url: u, resolvingAgainstBaseURL: false)?.queryItems?.contains { $0.name == "code" && !($0.value ?? "").isEmpty } == true
+    }
+    // Item 22: lgogdownloader trades the code in that address for tokens. Returns "Signed in to GOG." or why not, in lgogdownloader's own
+    // words; never hangs (60 s, or COSMO_TEST_GOG_TIMEOUT in the test build).
+    nonisolated static func gogSignIn(redirectURL: String) -> (ok: Bool, message: String) {
+        guard let g = lgogPath else { return (false, "Sign-in failed: lgogdownloader isn't installed (Stores… › Set up GOG).") }
+        let s = redirectURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let u = URL(string: s), isGogRedirect(u) else { return (false, "Sign-in failed: that isn't the address GOG's login ends on (https://embed.gog.com/on_login_success?…code=…).") }
+        let limit = isTestBuild ? Double(ProcessInfo.processInfo.environment["COSMO_TEST_GOG_TIMEOUT"] ?? "") ?? 60 : 60
+        let p = Process(); p.executableURL = URL(fileURLWithPath: g); p.arguments = ["--browser-login"]
+        let inp = Pipe(), out = Pipe(); p.standardInput = inp; p.standardOutput = out; p.standardError = out
+        do { try p.run() } catch { return (false, "Sign-in failed: lgogdownloader could not start (\(error.localizedDescription)).") }
+        inp.fileHandleForWriting.write(Data((s + "\n").utf8)); try? inp.fileHandleForWriting.close()
+        DispatchQueue.global().asyncAfter(deadline: .now() + limit) { if p.isRunning { p.terminate() } }
+        let text = String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self); p.waitUntilExit()
+        if p.terminationReason == .uncaughtSignal { return (false, "Sign-in failed: GOG didn't answer within \(Int(limit)) seconds. Check the internet connection and try again.") }
+        if p.terminationStatus == 0, gogTokens() { return (true, "Signed in to GOG.") }
+        let why = text.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty && !$0.contains("://") }.suffix(2).joined(separator: " ")
+        return (false, "Sign-in failed: " + (why.isEmpty ? "lgogdownloader stopped with code \(p.terminationStatus) and no message." : why))
+    }
+    func gogSignIn(redirectURL: String, done: @escaping @MainActor (Bool, String) -> Void = { _, _ in }) {
+        Task.detached { let r = Model.gogSignIn(redirectURL: redirectURL)
+            await MainActor.run { self.log += r.message + "\n"; logToFile(r.message + "\n"); if r.ok { gogOwned = []; self.scan() }; done(r.ok, r.message) } }
     }
     func gogSignOut() { gogOwned = []; for f in ["galaxy_tokens.json", "cookies.txt"] { try? FileManager.default.removeItem(atPath: NSHomeDirectory() + "/.config/lgogdownloader/" + f) }; scan() }
     func gogInstalled() -> Set<String> { Set((try? FileManager.default.contentsOfDirectory(atPath: "\(bottlesDir)/\(selected)/drive_c/GOG Games")) ?? []) }

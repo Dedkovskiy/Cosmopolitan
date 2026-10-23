@@ -21,7 +21,8 @@ testenv_init() {
   TH="$T/home"; TS="$TH/Library/Application Support/Cosmopolitan"
   mkdir -p "$TS/engines" "$TH/Library/Logs"
   cp -cR "$TESTENV_REPO/Cosmopolitan.app" "$T/CosmopolitanTest.app"
-  /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier local.cosmopolitan.test" -c "Set :CFBundleName CosmopolitanTest" "$T/CosmopolitanTest.app/Contents/Info.plist"
+  # Its own settings; never a cosmopolitan:// handler and no update checks (GUI screenshots run it as a normal app).
+  /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier local.cosmopolitan.test" -c "Set :CFBundleName CosmopolitanTest" -c "Delete :CFBundleURLTypes" -c "Set :SUEnableAutomaticChecks false" "$T/CosmopolitanTest.app/Contents/Info.plist"
   codesign --force --deep --sign - "$T/CosmopolitanTest.app" 2>/dev/null
   if [[ -z "${TESTENV_NO_ENGINE:-}" ]]; then   # a --setup test wants an empty support folder
     cp -cR "$REAL_SUPPORT/engines/$ENGINE" "$REAL_SUPPORT/engines/renderer" "$TS/engines/" 2>/dev/null

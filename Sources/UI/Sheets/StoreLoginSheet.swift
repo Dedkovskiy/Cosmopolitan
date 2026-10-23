@@ -3,7 +3,7 @@ import WebKit
 
 // Store sign-in inside the app: the store's own login page runs in a web view with a fresh, private session (so a stale browser
 // login cannot skip Epic's policy prompts). The moment the page that carries the code appears, it is read and handed to
-// Legendary / lgogdownloader; the user never copies anything. A paste field stays as fallback.
+// Legendary / lgogdownloader; the user never copies anything. Epic keeps a paste field as fallback; GOG needs none.
 struct StoreLoginWebView: NSViewRepresentable {
     let url: URL
     let onCode: (String) -> Void          // Epic: authorizationCode; GOG: the full redirect URL (what lgogdownloader asks for)
@@ -19,6 +19,11 @@ struct StoreLoginWebView: NSViewRepresentable {
     final class Coordinator: NSObject, WKNavigationDelegate {
         let p: StoreLoginWebView; var done = false
         init(_ p: StoreLoginWebView) { self.p = p }
+        // GOG: the success address is caught before it loads (nothing is sent to that page); didFinish below stays as a fallback.
+        func webView(_ w: WKWebView, decidePolicyFor a: WKNavigationAction, decisionHandler: @escaping @MainActor @Sendable (WKNavigationActionPolicy) -> Void) {
+            if !p.isEpic, !done, let u = a.request.url, Model.isGogRedirect(u) { done = true; decisionHandler(.cancel); p.onCode(u.absoluteString); return }
+            decisionHandler(.allow)
+        }
         func webView(_ w: WKWebView, didFinish nav: WKNavigation!) {
             guard !done, let u = w.url else { return }
             if p.isEpic, u.path.hasPrefix("/id/api/redirect") {
@@ -26,7 +31,7 @@ struct StoreLoginWebView: NSViewRepresentable {
                     guard let s = r as? String, let d = s.data(using: .utf8), let j = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any] else { return }
                     if let c = j["authorizationCode"] as? String, !c.isEmpty { self.done = true; self.p.onCode(c) }
                 }
-            } else if !p.isEpic, u.host?.hasSuffix("gog.com") == true, u.path.contains("on_login_success"), u.absoluteString.contains("code=") {
+            } else if !p.isEpic, Model.isGogRedirect(u) {
                 done = true; p.onCode(u.absoluteString)
             }
         }
@@ -40,22 +45,34 @@ extension ContentView {
             HStack {
                 Text(epic ? "Sign in to Epic Games" : "Sign in to GOG").font(.headline)
                 Spacer()
-                Button("Cancel") { loginStore = nil }.keyboardShortcut(.cancelAction)
+                Button(loginResult?.ok == true ? "Done" : "Cancel") { closeLogin() }.keyboardShortcut(.cancelAction)
             }
-            Text(epic ? "Log in below. If Epic asks you to accept an updated policy, accept it; the sign-in completes by itself afterwards."
-                      : "Log in below. The sign-in completes by itself when GOG's login finishes (the page it lands on looks empty; that is fine).")
-                .font(.caption).foregroundStyle(.secondary)
-            StoreLoginWebView(url: epic ? Model.epicLoginURL : Model.gogLoginURL, onCode: { code in
-                if epic { m.epicSignIn(code: code) } else { m.gogSignIn(redirectURL: code) }
-                loginStore = nil
-            }, isEpic: epic).frame(width: 720, height: 620).clipShape(RoundedRectangle(cornerRadius: 8))
-            HStack {
-                TextField(epic ? "…or paste the authorizationCode here" : "…or paste the https://embed.gog.com/on_login_success?… address here", text: $loginCode).textFieldStyle(.roundedBorder)
-                Button("Use code") { if epic { m.epicSignIn(code: loginCode) } else { m.gogSignIn(redirectURL: loginCode) }; loginCode = ""; loginStore = nil }
-                    .disabled(epic ? loginCode.trimmingCharacters(in: .whitespaces).count < 8 : !loginCode.contains("code="))
+            if !epic, let r = loginResult {   // item 22: GOG's outcome stays on screen: "Signed in" or the reason it failed
+                Label(r.message, systemImage: r.ok ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                    .foregroundStyle(r.ok ? .green : .orange).font(.title3).fixedSize(horizontal: false, vertical: true).frame(width: 720, alignment: .leading)
+                if r.ok { Text("Your GOG library loads in the background: Stores… › Install GOG game.").font(.caption).foregroundStyle(.secondary) }
+                else { Button("Try again") { loginResult = nil } }
+            } else if loginBusy {
+                ProgressView("Signing in to GOG…").frame(width: 720, height: 120)
+            } else {
+                Text(epic ? "Log in below. If Epic asks you to accept an updated policy, accept it; the sign-in completes by itself afterwards."
+                          : "Log in below. The sign-in completes by itself when GOG's login finishes.")
+                    .font(.caption).foregroundStyle(.secondary)
+                StoreLoginWebView(url: epic ? Model.epicLoginURL : Model.gogLoginURL, onCode: { code in
+                    if epic { m.epicSignIn(code: code); loginStore = nil } else { gogFinish(code) }
+                }, isEpic: epic).frame(width: 720, height: 620).clipShape(RoundedRectangle(cornerRadius: 8))
+                if epic {   // GOG needs no pasting any more: its redirect is caught (item 22)
+                    HStack {
+                        TextField("…or paste the authorizationCode here", text: $loginCode).textFieldStyle(.roundedBorder)
+                        Button("Use code") { m.epicSignIn(code: loginCode); loginStore = nil; loginCode = "" }
+                            .disabled(loginCode.trimmingCharacters(in: .whitespaces).count < 8)
+                    }
+                }
             }
         }.padding()
     }
+    func gogFinish(_ address: String) { loginBusy = true; m.gogSignIn(redirectURL: address) { ok, msg in loginBusy = false; loginResult = (ok, msg) } }
+    func closeLogin() { loginStore = nil; loginResult = nil; loginBusy = false }
 
     @ViewBuilder var storesMenu: some View {
         Menu("Stores…") {

@@ -9,7 +9,7 @@ let updater = SPUStandardUpdaterController(startingUpdater: !isTestBuild, update
     init() {
         enterTestModeIfNeeded()   // first, before any path is computed
         let a = CommandLine.arguments
-        let modes = ["--settings", "--setup", "--session-end", "--troubleshoot", "--repair", "--input", "--find", "--status", "--check", "--update", "--launch", "--tune", "--tunesteam", "--newbottle", "--accept-d3dmetal", "--snapshot", "--rollback", "--importables", "--import", "--willitrun", "--bugreport", "--hints", "--offline", "--compress", "--shaders", "--volumes", "--offlineexe", "--uslayout", "--hudocr", "--saves", "--mods", "--addmod", "--mod", "--rumble", "--padmode", "--procs", "--clean-driver-copies", "--sweep-registry", "--tree-hash", "--install-d3dmetal", "--print-env", "--install-runtime", "--snapshots", "--bisect", "--cleanup"]   // --launch <bottle> <exe> [seconds] | --wait [max seconds]   // --check <bottle> <exe>: dry-run of the launch check
+        let modes = ["--settings", "--setup", "--session-end", "--troubleshoot", "--repair", "--input", "--find", "--status", "--check", "--update", "--launch", "--tune", "--tunesteam", "--newbottle", "--accept-d3dmetal", "--snapshot", "--rollback", "--importables", "--import", "--willitrun", "--bugreport", "--hints", "--offline", "--compress", "--shaders", "--volumes", "--offlineexe", "--uslayout", "--hudocr", "--saves", "--mods", "--addmod", "--mod", "--rumble", "--padmode", "--procs", "--clean-driver-copies", "--sweep-registry", "--tree-hash", "--install-d3dmetal", "--print-env", "--install-runtime", "--snapshots", "--bisect", "--cleanup", "--gog-signin", "--gog-redirect"]   // --launch <bottle> <exe> [seconds] | --wait [max seconds]   // --check <bottle> <exe>: dry-run of the launch check
         guard let i = a.firstIndex(where: { modes.contains($0) }) else { return }
         cliMode = true
         let m = Model()
@@ -60,6 +60,8 @@ let updater = SPUStandardUpdaterController(startingUpdater: !isTestBuild, update
                 m.rollback(to: s.path); let t0 = Date(); repeat { RunLoop.main.run(until: Date().addingTimeInterval(0.5)) } while m.busy && Date().timeIntervalSince(t0) < 60
             } else { m.log += "no snapshots\n" }
         case "--cleanup": m.log += cleanUp(bottles: m.bottles)   // what the daily housekeeping does
+        case "--gog-signin": if i + 1 < a.count { m.log += Model.gogSignIn(redirectURL: a[i + 1]).message + "\n" }   // what the sheet does with the address
+        case "--gog-redirect": if i + 1 < a.count { m.log += (URL(string: a[i + 1]).map(Model.isGogRedirect) == true ? "caught" : "not a sign-in address") + "\n" }
         case "--snapshots": for s in m.snapshots() { m.log += "snapshot \(s.when)  \(s.reason)\n" }; m.log += "disk held only by snapshots: \(Model.snapshotDiskUse(m.selected)) bytes\n"
         case "--bisect": if i + 2 < a.count { m.bisect(a[i + 2]); RunLoop.main.run(until: Date().addingTimeInterval(3)) }
         case "--importables": m.log += m.importableBottles().map { "\($0.label)\t\($0.path)" }.joined(separator: "\n") + "\n"
