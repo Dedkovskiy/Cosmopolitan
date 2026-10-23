@@ -9,6 +9,12 @@ extension Model {
         if onBattery() { out += "On battery: DXMT games are capped at 60 fps with lighter rendering; Direct3D 12 games " + (d3dmetalFrameCap() ? "are capped at 60 fps by D3DMetal.\n" : "are not capped (this D3DMetal has no frame limiter).\n") }
         return out
     }
+    // Item 25: the battery part of the Automatic summary, true to the installed D3DMetal (3.0 has no frame limiter; the 4.0 beta has one).
+    func batterySummary() -> String {
+        guard let d = d3dmetalNow else { return "60 fps cap and lighter rendering while on battery" }
+        return d3dmetalFrameCap() ? "60 fps cap and lighter rendering while on battery (D3DMetal \(d.pretty) games capped too)"
+                                  : "60 fps cap and lighter rendering while on battery for DXMT games; D3DMetal \(d.pretty) games: cap not available"
+    }
 }
 
 // The battery cap applies on battery, or when macOS reports serious thermal pressure. Test build only: COSMO_TEST_ON_BATTERY=1 simulates battery.

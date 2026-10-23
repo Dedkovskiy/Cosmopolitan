@@ -58,7 +58,7 @@ struct ContentView: View {
                 }.fixedSize()
                 Divider()
                 Text("Automatic").font(.headline)
-                Text("Windows version per program · drivers per program · runtimes and community fixes on launch · Steam starts with the app · msync · 60 fps cap and lighter rendering while on battery")
+                Text("Windows version per program · drivers per program · runtimes and community fixes on launch · Steam starts with the app · msync · " + m.batterySummary())
                     .font(.caption).foregroundStyle(.secondary)
                 Toggle("Metal performance HUD", isOn: $m.hud).disabled(m.selected.isEmpty)
                     .onChange(of: m.hud) { _, v in if !m.loading { m.envSet("MTL_HUD_ENABLED", v ? "1" : nil); m.requestSteamRestart("games started from Steam show the HUD setting") } }
