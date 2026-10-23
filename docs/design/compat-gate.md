@@ -433,6 +433,22 @@ Each scenario is a unit test (mock `HostProfile` + fake inventory + DB fixture) 
 6. Learning + battery-cap honesty + chip defaults.
 7. Scenarios A–D and tests 1–18 green under both sanitizer runs. Then the Phase 5 plan.
 
+## 9. Decisions landed (remaining-work items, 2026-10-23)
+
+Each item has its own commit and test (`tests/safety/<name>.sh`, all in `tests/run-all.sh`).
+
+**22 GOG sign-in.** The sheet loads GOG's own login page in a private web view and catches the success address (https, `*.gog.com`, `on_login_success`, a `code`) in `decidePolicyFor`, before it loads; `didFinish` stays as a fallback and the paste step is gone. lgogdownloader `--browser-login` trades the code (60 s limit); the sheet shows "Signed in to GOG." or the reason in lgogdownloader's words. *Where the sign-in lives:* `~/.config/lgogdownloader/galaxy_tokens.json` (OAuth access and refresh token) and `cookies.txt`, mode 600; lgogdownloader honours `XDG_CONFIG_HOME` and has no Keychain support. *Keychain is feasible only by wrapping:* keep the token JSON in the login Keychain and, for each lgogdownloader call, write it to a private temporary `XDG_CONFIG_HOME` (mode 700), run the tool, store the refreshed tokens back (the refresh token rotates on use) and delete the folder. Costs: every call path goes through the wrapper, and a crash between run and write-back can lose a rotated token (sign in again). Not built; your call.
+
+**24 Steam restarts.** A bottle's Steam is the `steam.exe` whose working folder is inside that bottle (Wine keeps the Unix working folder on the Windows current directory; Wine overwrites the environment block, so `WINEPREFIX` can't be read back); `cosmo_proc_find_in` in the native module. "Busy" = an app manifest in a download/update state, Steam's `Updating` flag, a `steamapps\common` process in that bottle, or Steam's `Running` flag. Setting-driven restarts (HUD, the Direct3D 12 driver change) wait and re-check every 20 s; Play and winetricks ask first. Stopping Steam never touches another bottle (it used to `pkill` every `steam.exe`).
+
+**25 Battery text.** The Automatic summary says "D3DMetal 3.0 games: cap not available" when the installed D3DMetal lacks `D3DM_MAX_FPS`.
+
+**26 Snapshots.** One `clonefile(2)` of the whole bottle (0.46 s for 28 000 files) before Repair, a driver switch, a registry sweep (only when it has work) and a Windows-version change (only when the version changes); never a full copy. Newest 3 per bottle, names matched exactly (`Steam` never prunes `Steam-2`'s); the daily cleanup follows the same rule (it used to keep two snapshots across all bottles). Disk use counts snapshot files the bottle has rewritten or deleted since, once across snapshots: an upper bound. Rollback stops only that bottle's wineserver and keeps the state before as a snapshot.
+
+**39 Library.** Every bottle's games in one grid; the launch check works per game (`bottleOf(exe)`), so a game's status is right whatever bottle is selected, and Play selects the game's bottle first. Status words come from the launch check's light: green and yellow → Ready (Setting up… while first-start work runs), red with a fix → Needs a fix, red without → Won't run: reason (kernel anti-cheat, damaged file, missing files). Advanced is the previous window, behind Settings › Show advanced options. Outside Advanced no screen uses bottle, prefix, driver, DLL, registry, Wine, DirectX, Vulkan or msync (checked by a scan of the beginner screens' strings). One bottle per store, created automatically for stores added from the Library.
+
+**40 Onboarding.** Silent checks first (chip, macOS, memory, free disk, Rosetta, Game Porting Toolkit, stores and games); This Mac only when limited (≤ 8 GB or < 30 GB free), Rosetta only when missing, Controller only when one is connected. Rosetta installs only after "Agree and Install", through macOS's administrator prompt. The toolkit is found on a mounted disk image and used only from the user's copy, with Apple's licence shown before accepting. The engine prepares in the background from the second screen; resume is by the saved screen; existing installs see "What's new" once. Store sign-ins chosen during onboarding open when the Library opens (a sheet can't present another sheet). Test builds get their own preferences domain per throwaway home (macOS keeps preferences per user, not per HOME).
+
 ## Sources
 
 **Apple Read Me files** (primary sources on this Mac, quoted verbatim above):
