@@ -2,7 +2,7 @@ import SwiftUI
 
 // §5.2 Cover art for Steam games from Steam's own public CDN (no API key, no account): cached per bottle under art/<appid>.jpg.
 extension Model {
-    func artPath(_ exe: String) -> String? { steamGames[exe].map { "\(bottlesDir)/\(selected)/art/\($0.id).jpg" } }
+    func artPath(_ exe: String) -> String? { steamGames[exe].map { "\(bottlesDir)/\(bottleOf(exe))/art/\($0.id).jpg" } }
     func fetchArt() {
         let dir = "\(bottlesDir)/\(selected)/art"
         let todo = programs.compactMap { p -> (String, String)? in guard let g = steamGames[p], !FileManager.default.fileExists(atPath: "\(dir)/\(g.id).jpg") else { return nil }; return (g.id, "\(dir)/\(g.id).jpg") }

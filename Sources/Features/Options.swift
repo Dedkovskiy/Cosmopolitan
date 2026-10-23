@@ -1,7 +1,7 @@
 import SwiftUI
 
 extension Model {
-    func optionsPath(_ exe: String) -> String { "\(bottlesDir)/\(selected)/options/\((exe as NSString).lastPathComponent).env" }
+    func optionsPath(_ exe: String) -> String { "\(bottlesDir)/\(bottleOf(exe))/options/\((exe as NSString).lastPathComponent).env" }
     func options(_ exe: String) -> [String: String] {
         var o: [String: String] = [:]
         for l in ((try? String(contentsOfFile: optionsPath(exe), encoding: .utf8)) ?? "").components(separatedBy: "\n") where !l.hasPrefix("#") {

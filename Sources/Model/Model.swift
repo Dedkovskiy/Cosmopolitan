@@ -1,4 +1,5 @@
 import SwiftUI
+import Network
 
 @MainActor final class Model: ObservableObject {
     @Published var bottles: [String] = []
@@ -56,6 +57,13 @@ import SwiftUI
     var lastMemWarn = Date.distantPast                 // memory advisor rate limit
     @Published var pendingSteamRestart: (bottle: String, why: String, busy: String)? = nil   // a Steam restart waiting for idle (item 24)
     var steamWaitArmed = false
+    @Published var library: [String] = []                         // every bottle's games, for the Library (item 39)
+    @Published var online = true                                  // the Library says per game whether it starts without internet
+    @Published var problem: (game: String, text: String)? = nil  // a problem in plain words, shown with a Fix button
+    @Published var settingUp: Set<String> = []                    // games whose first start is installing what they need
+    @Published var askD3DMetal = false                            // Fix this game: Apple's toolkit is the user's step, its sheet opens
+    @Published var activity = ""                                  // one plain sentence about what is happening (no raw log in the Library)
+    let pathMonitor = NWPathMonitor()
     @Published var artVersion = 0                      // bumped when cover art or playtime files change, so tiles redraw
     var pauseObservers: [NSObjectProtocol] = []        // pause-in-background observers, one per armed game
     @Published var showSetup = false           // first-run setup sheet
@@ -166,7 +174,7 @@ import SwiftUI
     init() {
         refresh()
         checkDriverUpdates()
-        if !cliMode { dailyCleanUp(); if setupNeeded { showSetup = true } }
+        if !cliMode { dailyCleanUp(); watchNetwork(); if setupNeeded { showSetup = true } }
         autostart()
         // Pad on/off and driver folders change outside the app; re-check every 5 s (one ioreg call, ~30 ms).
         Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in Task { @MainActor in self?.updateStatus() } }
@@ -210,9 +218,15 @@ import SwiftUI
         loading = false
         updateStatus()
     }
-    func launchEnvRaw() -> [String: String] {
+    // The bottle a program lives in, from its path (<bottlesDir>/<bottle>/drive_c/…); the selected one for anything else.
+    func bottleOf(_ exe: String) -> String {
+        let pre = bottlesDir + "/"
+        guard exe.hasPrefix(pre), let b = exe.dropFirst(pre.count).split(separator: "/").first else { return selected }
+        return String(b)
+    }
+    func launchEnvRaw(_ bottle: String? = nil) -> [String: String] {
         var e: [String: String] = [:]
-        for l in ((try? String(contentsOfFile: envPath, encoding: .utf8)) ?? "").components(separatedBy: "\n") {
+        for l in ((try? String(contentsOfFile: "\(bottlesDir)/\(bottle ?? selected)/cosmopolitan.env", encoding: .utf8)) ?? "").components(separatedBy: "\n") {
             let kv = l.split(separator: "=", maxSplits: 1).map(String.init)
             if kv.count == 2 { e[kv[0]] = kv[1] }
         }
@@ -223,8 +237,19 @@ import SwiftUI
     func scan() {
         loadSettings()
         programs = []
-        guard !selected.isEmpty else { return }
-        let c = "\(bottlesDir)/\(selected)/drive_c"
+        guard !selected.isEmpty else { library = []; return }
+        programs = programsIn(selected)
+        // The Library shows every bottle's games in one grid (item 39); the launch check works per game, whatever bottle is selected.
+        library = (bottles.filter { $0 != selected && FileManager.default.fileExists(atPath: "\(bottlesDir)/\($0)/drive_c") }.flatMap { programsIn($0) } + programs)
+            .sorted { appName($0).lowercased() < appName($1).lowercased() }
+        verifyAll(); fetchArt()
+        if watchedBottle != selected { watchBottle(); excludeFromBackups(selected) }
+        for b in unpluggedBottles() { log += "Bottle \(b) is on a drive that is not connected; it reappears when the drive is plugged in.\n" }
+    }
+
+    // The programs of one bottle: store libraries, Program Files, GOG/Epic folders and "Find apps" extras, one tile per application.
+    func programsIn(_ bottle: String) -> [String] {
+        let c = "\(bottlesDir)/\(bottle)/drive_c"
         var found: [String] = []
         for root in ["Program Files", "Program Files (x86)"] {
             guard let apps = try? FileManager.default.contentsOfDirectory(atPath: "\(c)/\(root)") else { continue }
@@ -270,16 +295,13 @@ import SwiftUI
             steamGames["\(dir)/\(exe)"] = (id, val("name"))
             found.append("\(dir)/\(exe)")
         }
-        for p in storeGames() where !found.contains(p) { found.append(p) }   // GOG game folders, Legendary-installed Epic games
+        for p in storeGames(bottle) where !found.contains(p) { found.append(p) }   // GOG game folders, Legendary-installed Epic games
         // Extras from "Find apps" (dropped silently once uninstalled).
-        for p in ((try? String(contentsOfFile: "\(bottlesDir)/\(selected)/cosmopolitan.apps", encoding: .utf8)) ?? "").components(separatedBy: "\n")
+        for p in ((try? String(contentsOfFile: "\(bottlesDir)/\(bottle)/cosmopolitan.apps", encoding: .utf8)) ?? "").components(separatedBy: "\n")
             where !p.isEmpty && !found.contains(p) && FileManager.default.fileExists(atPath: p) { found.append(p) }
         found = dedupe(found)   // one tile per application folder
         for p in found where icons[p] == nil { icons[p] = exeIcon(p) }
-        programs = found.sorted { ($0 as NSString).lastPathComponent.lowercased() < ($1 as NSString).lastPathComponent.lowercased() }
-        verifyAll(); fetchArt()
-        if watchedBottle != selected { watchBottle(); excludeFromBackups(selected) }
-        for b in unpluggedBottles() { log += "Bottle \(b) is on a drive that is not connected; it reappears when the drive is plugged in.\n" }
+        return found.sorted { ($0 as NSString).lastPathComponent.lowercased() < ($1 as NSString).lastPathComponent.lowercased() }
     }
 
     // Run any executable; `block` locks the UI buttons until it exits.

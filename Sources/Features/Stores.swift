@@ -127,8 +127,8 @@ extension Model {
 
     // Extra places the plain scan does not look: GOG game folders (one level deeper) and Legendary's installed Epic games.
     // Also refreshes the owned-library lists for the Install menus in the background (network calls, off the main thread).
-    func storeGames() -> [String] {
-        let c = "\(bottlesDir)/\(selected)/drive_c", fm = FileManager.default
+    func storeGames(_ bottle: String? = nil) -> [String] {
+        let c = "\(bottlesDir)/\(bottle ?? selected)/drive_c", fm = FileManager.default
         var out: [String] = []
         for root in ["GOG Games", "Program Files (x86)/GOG Galaxy/Games", "Program Files (x86)/GOG Games"] {
             for game in (try? fm.contentsOfDirectory(atPath: "\(c)/\(root)")) ?? [] where !game.hasPrefix(".") {

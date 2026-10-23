@@ -17,6 +17,7 @@ extension Model {
         let tail = String(((try? String(contentsOfFile: logPath, encoding: .utf8)) ?? "").suffix(20000))
         let hits = Model.logSigns.filter { tail.contains($0.key) }
         var out = "⚠ \(name) exited almost immediately (code \(code)).\n"
+        problem = (exe, "\(appName(exe)) closed right after it started.")   // the Library shows it with a Fix button
         for (s, hint) in hits { out += "  • \"\(s)\": \(hint)\n" }
         if hits["version mismatch"] != nil { out += "  → running Repair\n"; log += out; repair(); return }
         if hits["c000001d"] != nil || hits["Illegal instruction"] != nil {   // §4.3: enable AVX for this program after an illegal-instruction crash

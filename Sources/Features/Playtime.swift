@@ -2,7 +2,7 @@ import SwiftUI
 
 // §5.2 Playtime: seconds accumulated per program between launch and the process disappearing. Stored in options/.playtime-<exe>.
 extension Model {
-    func playtimePath(_ exe: String) -> String { "\(bottlesDir)/\(selected)/options/.playtime-\((exe as NSString).lastPathComponent)" }
+    func playtimePath(_ exe: String) -> String { "\(bottlesDir)/\(bottleOf(exe))/options/.playtime-\((exe as NSString).lastPathComponent)" }
     func playtime(_ exe: String) -> String? {
         guard let s = Int(((try? String(contentsOfFile: playtimePath(exe), encoding: .utf8)) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)), s > 60 else { return nil }
         return s >= 3600 ? "\(s / 3600) h \((s % 3600) / 60) min" : "\(s / 60) min"

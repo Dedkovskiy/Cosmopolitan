@@ -5,7 +5,11 @@ import SwiftUI
 //  autostartSteam  — start Steam with the app when a bottle has it (default on)
 //  dailyCleanup    — run Clean up once a day (default on)
 //  compatReports   — after a session, offer a prefilled compatibility report for Highball (opt-in, default off; nothing is sent by itself)
+//  showAdvanced    — Advanced in the Library, and the Engine and Helper tools sections here (item 39; default off)
 struct SettingsView: View {
+    @ObservedObject var m = Model.shared
+    @AppStorage("showAdvanced") var showAdvanced = false
+    @State var padCheck = ""
     @AppStorage("engine") var engine = defaultEngine
     @AppStorage("autostartSteam") var autostartSteam = true
     @AppStorage("dailyCleanup") var dailyCleanup = true
@@ -28,38 +32,54 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            Section("Engine") {
-                Picker("Wine engine", selection: $engine) {
-                    ForEach(Set(engines + [engine]).sorted(), id: \.self) { e in Text(e + (e == defaultEngine ? "  (tested)" : "")).tag(e) }
-                }
-                Text("Changing the engine takes effect for programs started afterwards. 11.x engines currently show Steam black on macOS 27.").font(.caption).foregroundStyle(.secondary)
+            Section("Controller") {
+                HStack { Button("Check my controller") { let c = nativeControllers(); padCheck = c.isEmpty ? "No controller found. Turn it on, or pair it in System Settings › Bluetooth." : "Connected: " + c.joined(separator: ", ") + ". It should rumble now."; m.testRumble() }
+                         Button("Live test…") { m.inputCheck() }.disabled(m.selected.isEmpty) }
+                if !padCheck.isEmpty { Text(padCheck).font(.caption) }
             }
-            Section("Behaviour") {
+            Section("Space") {
+                Button("Free up space") { m.runCleanUp() }
+                Toggle("Free up space by itself once a day", isOn: $dailyCleanup)
+                Text("Removes temporary files, crash dumps, used installers and old download caches. Games and saves are never touched.").font(.caption).foregroundStyle(.secondary)
+            }
+            Section("Setup") {
+                Button("Run setup again") { m.showSetup = true }
                 Toggle("Start Steam together with Cosmopolitan", isOn: $autostartSteam)
-                Toggle("Clean up caches and old versions once a day", isOn: $dailyCleanup)
+            }
+            Section {
+                Toggle("Show advanced options", isOn: $showAdvanced)
+                Text("Adds Advanced to the Library: graphics components, Apple's toolkit, snapshots, tools and logs.").font(.caption).foregroundStyle(.secondary)
             }
             Section("Compatibility reports") {
                 Toggle("Offer a compatibility report after playing a game", isOn: $compatReports)
                 Text("Off by default. When on, Cosmopolitan offers a prefilled report for the open Highball database after a session; it is only sent if you submit it yourself on GitHub. Nothing is ever sent automatically.")
                     .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
-            Section("Helper tools (Homebrew)") {
-                ForEach(tools, id: \.name) { t in
-                    HStack {
-                        Image(systemName: t.path != nil ? "checkmark.circle.fill" : "circle").foregroundStyle(t.path != nil ? .green : .secondary)
-                        VStack(alignment: .leading) { Text(t.name); Text(t.why).font(.caption).foregroundStyle(.secondary) }
-                        Spacer()
-                        if t.path == nil {
-                            Button(installing == t.name ? "Installing…" : "Install") { install(t.name, t.formula) }
-                                .disabled(installing != nil || !FileManager.default.fileExists(atPath: "/opt/homebrew/bin/brew"))
+            if showAdvanced {
+                Section("Engine") {
+                    Picker("Wine engine", selection: $engine) {
+                        ForEach(Set(engines + [engine]).sorted(), id: \.self) { e in Text(e + (e == defaultEngine ? "  (tested)" : "")).tag(e) }
+                    }
+                    Text("Changing the engine takes effect for programs started afterwards. 11.x engines currently show Steam black on macOS 27.").font(.caption).foregroundStyle(.secondary)
+                }
+                Section("Helper tools (Homebrew)") {
+                    ForEach(tools, id: \.name) { t in
+                        HStack {
+                            Image(systemName: t.path != nil ? "checkmark.circle.fill" : "circle").foregroundStyle(t.path != nil ? .green : .secondary)
+                            VStack(alignment: .leading) { Text(t.name); Text(t.why).font(.caption).foregroundStyle(.secondary) }
+                            Spacer()
+                            if t.path == nil {
+                                Button(installing == t.name ? "Installing…" : "Install") { install(t.name, t.formula) }
+                                    .disabled(installing != nil || !FileManager.default.fileExists(atPath: "/opt/homebrew/bin/brew"))
+                            }
                         }
                     }
-                }
-                if !FileManager.default.fileExists(atPath: "/opt/homebrew/bin/brew") {
-                    Text("Homebrew is not installed (brew.sh); these tools are optional.").font(.caption).foregroundStyle(.secondary)
+                    if !FileManager.default.fileExists(atPath: "/opt/homebrew/bin/brew") {
+                        Text("Homebrew is not installed (brew.sh); these tools are optional.").font(.caption).foregroundStyle(.secondary)
+                    }
                 }
             }
-        }.formStyle(.grouped).frame(width: 520, height: 560)
+        }.formStyle(.grouped).frame(width: 520, height: 600)
     }
 
     func install(_ name: String, _ formula: String) {

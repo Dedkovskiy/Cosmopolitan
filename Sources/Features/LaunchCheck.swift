@@ -3,6 +3,7 @@ import SwiftUI
 extension Model {
     struct Needs { var drivers: [String]?; var verbs: [String]; var note: String; var overrides: [(String, String)] = []; var env: [String: String] = [:]; var args: [String] = []; var desktop = false; var winver = ""; var status: Color = .green; var dx12 = false; var anticheat: (Color, String)? = nil; var restartSteam = false; var needsDotNet = false; var runtimes: [Runtime] = [] }
     func launchNeeds(_ exe: String) -> Needs {
+        let bottle = bottleOf(exe)   // the program's own bottle, whichever is selected (the Library shows every bottle's games)
         let name = (exe as NSString).lastPathComponent, dir = (exe as NSString).deletingLastPathComponent, fm = FileManager.default
         if peRead(exe).info.error != 0 {   // truncated or malformed header: a clear answer instead of a guess
             var n = Needs(drivers: nil, verbs: [], note: "Launch check \(name): unreadable executable (damaged or truncated file)\n"); n.status = .red; return n
@@ -21,11 +22,11 @@ extension Model {
             }
         }
         let local = Set(((try? fm.contentsOfDirectory(atPath: dir)) ?? []).map { $0.lowercased() })
-        let sys = Set(((try? fm.contentsOfDirectory(atPath: "\(bottlesDir)/\(selected)/drive_c/windows/system32")) ?? []).map { $0.lowercased() })
+        let sys = Set(((try? fm.contentsOfDirectory(atPath: "\(bottlesDir)/\(bottle)/drive_c/windows/system32")) ?? []).map { $0.lowercased() })
         let missing = imps.filter { !$0.hasPrefix("api-ms-") && !$0.hasPrefix("ext-ms-") && !builtinDLLs.contains($0) && !local.contains($0) && !sys.contains($0) }
         // A builtin Wine DLL only loads if its stub file exists in system32 (64-bit) / syswow64 (32-bit). If something deleted the stub
         // (an uninstaller, a DirectX redist cleanup), the game dies at start with "Library X not found"; put the engine's copy back.
-        let win = "\(bottlesDir)/\(selected)/drive_c/windows", lib = (wineBin as NSString).deletingLastPathComponent + "/../lib/wine"
+        let win = "\(bottlesDir)/\(bottle)/drive_c/windows", lib = (wineBin as NSString).deletingLastPathComponent + "/../lib/wine"
         let is32 = peRead(exe).info.machine == 0x14c
         for d in imps where builtinDLLs.contains(d) && !local.contains(d) {
             let dst = "\(win)/\(is32 ? "syswow64" : "system32")/\(d)", src = "\(lib)/\(is32 ? "i386" : "x86_64")-windows/\(d)"
@@ -61,7 +62,7 @@ extension Model {
                          : "battery 60 fps cap: not available for this game (D3DMetal \(Model.d3dmetalInfo(driversDir + "/d3dmetal")?.pretty ?? "") has no frame limiter); use the game's own frame limit or vsync")
         }
         if let fixed = storeDrivers(exe) { drivers = fixed; parts.append("store client: \(fixed.joined(separator: "+"))") }   // its UI is tested on these
-        else if !plan.drivers.isEmpty, !serves(driverList(launchEnvRaw(), bottle: selected), plan) {
+        else if !plan.drivers.isEmpty, !serves(driverList(launchEnvRaw(bottle), bottle: bottle), plan) {
             drivers = plan.drivers; parts.append("using \(plan.drivers.joined(separator: "+")) for this launch")
         }
         // Missing DLLs that a pinned Microsoft runtime provides are installed from Microsoft's own installer before the launch.
@@ -70,7 +71,7 @@ extension Model {
         // .NET: ready only once the probe program has actually run in this bottle (Wine Mono from WineHQ, installed with the bottle).
         var dotnet = ""   // "", "pending" (not checked yet), "bad" (probe failed)
         if imps.contains("mscoree.dll") {
-            let pfx = "\(bottlesDir)/\(selected)"
+            let pfx = "\(bottlesDir)/\(bottle)"
             if fm.fileExists(atPath: Model.dotnetMarker(pfx)) { parts.append(".NET app (.NET verified in this bottle)") }
             else if fm.fileExists(atPath: Model.dotnetFailMarker(pfx)) { dotnet = "bad"; parts.append(".NET doesn't run in this bottle yet — launching it or Repair installs Wine Mono from WineHQ") }
             else { dotnet = "pending"; parts.append(".NET app (.NET not checked in this bottle yet; checked before the first launch)") }
@@ -109,7 +110,7 @@ extension Model {
         if let l = o["LANG"], ["ja", "zh", "ko"].contains(where: { l.hasPrefix($0) }), !verbs.contains("cjkfonts") { verbs.append("cjkfonts"); parts.append("locale \(l) + CJK fonts") }
         if !o.isEmpty { parts.append("custom options: " + o.keys.sorted().joined(separator: " ")) }
         let unknown = missing.filter { depVerbs[$0] == nil && Model.runtimeFor(dll: $0, is32: is32) == nil }
-        let pfxR = "\(bottlesDir)/\(selected)"
+        let pfxR = "\(bottlesDir)/\(bottle)"
         n.runtimes = runtimes.filter { !fm.fileExists(atPath: Model.runtimeMarker(pfxR, $0)) }.sorted { $0.rawValue < $1.rawValue }
         if !n.runtimes.isEmpty { parts.append("installs " + n.runtimes.map { $0.pin.name }.joined(separator: ", ") + " from Microsoft first") }
         if !verbs.isEmpty { parts.append(winetricks == nil ? "needs \(verbs.joined(separator: " ")) — brew install winetricks to fetch automatically" : "fetching \(verbs.joined(separator: " ")) via winetricks") }
@@ -129,10 +130,10 @@ extension Model {
         let bottle = selected
         guard FileManager.default.fileExists(atPath: "\(bottlesDir)/\(bottle)/drive_c") else { return }
         Task { @MainActor in
-            for p in programs where bottle == selected {
+            for p in library {   // every bottle's games: the launch check works per game (item 39)
                 noteExeChange(p); readiness[p] = launchNeeds(p); await Task.yield()
             }
-            scanAVX(programs)   // background disassembly for exes not scanned yet; tiles update as results arrive
+            scanAVX(library)   // background disassembly for exes not scanned yet; tiles update as results arrive
             let pfx = "\(bottlesDir)/\(bottle)", fm = FileManager.default
             // Registry values the launch checks no longer want (and pre-ledger ones of programs no longer here) are removed in the background.
             if !cliMode { let wanted = registryWanted(bottle); Task.detached { let r = Model.applyRegistrySweep(bottle, wanted); if !r.isEmpty { await MainActor.run { self.log += "\(bottle): removed \(r.count) registry settings no longer needed:\n" + r.map { "  " + $0 }.joined(separator: "\n") + "\n" } } } }

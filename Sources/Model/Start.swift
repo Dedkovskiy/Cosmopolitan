@@ -23,11 +23,11 @@ extension Model {
         }
         if !need.runtimes.isEmpty {   // pinned Microsoft runtimes this program needs: install them into the bottle first
             let pfx = "\(bottlesDir)/\(selected)", run = go, rts = need.runtimes
-            go = { Task.detached { for r in rts { Model.installRuntime(r, prefix: pfx) { s in Task { @MainActor in self.log += s } } }; await MainActor.run { run() } } }
+            go = { self.settingUp.insert(exe); Task.detached { for r in rts { Model.installRuntime(r, prefix: pfx) { s in Task { @MainActor in self.log += s } } }; await MainActor.run { self.settingUp.remove(exe); run() } } }
         }
         if need.needsDotNet {   // .NET program in a bottle where .NET isn't verified: probe, install Wine Mono if needed, then start
             let pfx = "\(bottlesDir)/\(selected)", run = go
-            go = { Task.detached { _ = Model.ensureDotNet(pfx) { s in Task { @MainActor in self.log += s } }; await MainActor.run { self.readiness[exe] = self.launchNeeds(exe); run() } } }
+            go = { self.settingUp.insert(exe); Task.detached { _ = Model.ensureDotNet(pfx) { s in Task { @MainActor in self.log += s } }; await MainActor.run { self.settingUp.remove(exe); self.readiness[exe] = self.launchNeeds(exe); run() } } }
         }
         if need.verbs.isEmpty { go() } else {
             snapshot("before installing \(need.verbs.joined(separator: " "))")
@@ -36,7 +36,7 @@ extension Model {
             // winetricks ends many verbs with `wineserver -w`, which waits for EVERY Wine process in the bottle: with Steam running it
             // waits forever. So Steam is stopped first and brought back once the verbs are in (the program starts in between).
             let steamWasUp = steamRunning()
-            let run = { self.exec(winetricks!, ["-q"] + need.verbs, env: env) { go(); if steamWasUp { self.autostart() } } }
+            let run = { self.settingUp.insert(exe); self.exec(winetricks!, ["-q"] + need.verbs, env: env) { self.settingUp.remove(exe); go(); if steamWasUp { self.autostart() } } }
             if steamWasUp { log += "Stopping Steam while winetricks installs \(need.verbs.joined(separator: " ")) (it waits for all Wine processes); Steam comes back afterwards.\n"; Task { @MainActor in await self.stopSteam(); run() } }
             else { run() }
         }
