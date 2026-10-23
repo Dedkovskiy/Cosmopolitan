@@ -19,7 +19,11 @@ let updater = SPUStandardUpdaterController(startingUpdater: !isTestBuild, update
         switch a[i] {
         case "--repair": m.repair(); case "--input": m.inputCheck(); case "--find": m.findApps(); case "--update": m.log += Model.performUpdate(install: a.contains("--install"))
         case "--tunesteam": m.tuneSteam()
-        case "--newbottle": if i + 1 < a.count { m.createBottle(a[i + 1]); RunLoop.main.run(until: Date().addingTimeInterval(90)) }   // --newbottle <name>
+        case "--newbottle": if i + 1 < a.count {   // --newbottle <name>: returns when the bottle is ready (at most 300 s)
+            var done = false; let t0 = Date(); m.createBottle(a[i + 1]) { done = true }
+            while !done, Date().timeIntervalSince(t0) < 300 { RunLoop.main.run(until: Date().addingTimeInterval(0.5)) }
+            m.log += "newbottle: \(a[i + 1]) \(done ? "ready" : "not ready") after \(String(format: "%.1f", Date().timeIntervalSince(t0))) s\n"
+        }
         case "--accept-d3dmetal": m.acceptD3DMetal()   // same action as the "I accept" button; for the user's own scripting only
         case "--snapshot": m.snapshot(a.count > i + 2 ? a[i + 2] : "manual")
         case "--willitrun": if i + 2 < a.count { m.log += m.willItRun(a[i + 2]) }

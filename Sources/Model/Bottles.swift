@@ -1,8 +1,26 @@
 import SwiftUI
 
 extension Model {
+    // Item 31: a new bottle is one clonefile of a clean template, made from the first bottle created with this engine version and Windows
+    // version before anything was installed in it (seconds instead of a minute). A new engine version gets a fresh template, and older ones go.
+    nonisolated static var templatesDir: String { support + "/templates" }
+    nonisolated static func templateKey(_ winver: String) -> String {
+        let v = (isTestBuild ? ProcessInfo.processInfo.environment["COSMO_TEST_ENGINE_VERSION"] : nil) ?? shell("'\(wineBin)' --version 2>/dev/null").trimmingCharacters(in: .whitespacesAndNewlines)
+        return "\(engineName) \(v) \(winver)".replacingOccurrences(of: "/", with: "-")
+    }
+    func saveTemplate(_ name: String, _ key: String) {
+        let fm = FileManager.default, dir = Model.templatesDir, src = "\(bottlesDir)/\(name)"
+        guard fm.fileExists(atPath: src + "/drive_c/windows/mono") else { return }   // only a complete bottle (Wine Mono in) becomes the template
+        guard fm.fileExists(atPath: src + "/system.reg"), prefixServer(src) == nil else { return }   // and only with its registry on disk
+        try? fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        for old in (try? fm.contentsOfDirectory(atPath: dir)) ?? [] where old != key && old.hasSuffix(" " + (key.split(separator: " ").last.map(String.init) ?? "")) { try? fm.removeItem(atPath: "\(dir)/\(old)") }
+        if !fm.fileExists(atPath: "\(dir)/\(key)"), clonefile(src, "\(dir)/\(key)", UInt32(CLONE_NOFOLLOW)) == 0 { log += "Saved a clean template (\(key)); new bottles are made from it in seconds.\n" }
+    }
     func createBottle(_ name: String, then: (@MainActor () -> Void)? = nil) {
-        let t = template == "auto" ? "win10" : template
+        let t = template == "auto" ? "win10" : template, key = Model.templateKey(t), tpl = "\(Model.templatesDir)/\(key)"
+        if FileManager.default.fileExists(atPath: tpl + "/drive_c"), clonefile(tpl, "\(bottlesDir)/\(name)", UInt32(CLONE_NOFOLLOW)) == 0 {
+            log += "Bottle \(name): made from the clean template (\(key)).\n"; refresh(); then?(); return
+        }
         try? FileManager.default.createDirectory(atPath: "\(bottlesDir)/\(name)", withIntermediateDirectories: true)
         // mscoree/mshtml off: skips Mono/Gecko download prompts during creation.
         // No driver slots for wineboot: with them active it copies the drivers' DLLs into system32/syswow64 as if they were Wine's own.
@@ -14,7 +32,10 @@ extension Model {
                     try? FileManager.default.removeItem(atPath: "\(bottlesDir)/\(name)/dosdevices/z:")
                     self.log += "Bottle \(name): restricted to C: (no access to the Mac's files). Add FULL_DISK=1 to its cosmopolitan.env to widen it.\n"
                     let pfx = "\(bottlesDir)/\(name)"   // .NET: Wine Mono from WineHQ (pinned), verified by running the probe program
-                    Task.detached { _ = Model.installWineMono(pfx) { s in Task { @MainActor in self.log += s } }; await MainActor.run { then?() } } } } }
+                    Task.detached { _ = Model.installWineMono(pfx) { s in Task { @MainActor in self.log += s } }
+                        // Wine writes the registry to disk when the bottle's wineserver exits: wait for that (at most 30 s) before it can become the template.
+                        _ = shell("env WINEPREFIX='\(pfx)' perl -e 'alarm 30; exec @ARGV' -- '\((wineBin as NSString).deletingLastPathComponent)/wineserver' -w 2>/dev/null; true")
+                        await MainActor.run { self.saveTemplate(name, key); then?() } } } } }
     }
 
     func deleteBottle() {   // to Trash, so it's recoverable

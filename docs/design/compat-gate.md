@@ -457,6 +457,8 @@ Each item has its own commit and test (`tests/safety/<name>.sh`, all in `tests/r
 
 **30 Save backups.** The Ludusavi manifest (MIT) is fetched at runtime into the cache, at most weekly, and read with a line reader for its fixed shape (no YAML library). A game's Windows save paths are resolved inside its bottle (`<winAppData>`, `<base>`, `<home>`, `<storeUserId>` → `*`, …; Linux/Mac-only and other-store rules skipped; `**` read as one level) and cloned into `support/save-backups/<game>/<stamp> <reason>/`, newest 5 kept. Taken before Repair (the whole bottle), before a driver switch (Bisect, fallback, the Direct3D 12 change) and once per pending Steam update (an app manifest with an update state, checked every minute).
 
+**31 Template bottles.** The first bottle made with an engine version and Windows version becomes `support/templates/<engine> <wine --version> <winver>` once it is complete (Wine Mono in, and its wineserver gone, so the registry is on disk); later bottles are one `clonefile` of it. A new engine version has no template, so its first bottle is built normally and replaces the older template. `--newbottle` now returns when the bottle is ready instead of after a fixed 90 s.
+
 ## Sources
 
 **Apple Read Me files** (primary sources on this Mac, quoted verbatim above):
