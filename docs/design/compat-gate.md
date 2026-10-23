@@ -459,6 +459,8 @@ Each item has its own commit and test (`tests/safety/<name>.sh`, all in `tests/r
 
 **31 Template bottles.** The first bottle made with an engine version and Windows version becomes `support/templates/<engine> <wine --version> <winver>` once it is complete (Wine Mono in, and its wineserver gone, so the registry is on disk); later bottles are one `clonefile` of it. A new engine version has no template, so its first bottle is built normally and replaces the older template. `--newbottle` now returns when the bottle is ready instead of after a fixed 90 s.
 
+**32 Battery profile.** The 60 fps cap and lighter DXMT rendering apply on battery, in Low Power Mode (`isLowPowerModeEnabled`) and under serious thermal pressure; `--status` names the reason.
+
 ## Sources
 
 **Apple Read Me files** (primary sources on this Mac, quoted verbatim above):

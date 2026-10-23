@@ -35,7 +35,8 @@ func launchEnv(_ bottle: String, drivers: [String]? = nil) -> [String: String] {
     // msync: thread waits on Mach semaphores instead of server round-trips — less CPU, no effect on rendering. (The DLSS→MetalFX bridge stays OFF:
     // it was the real cause of the Dawnwalker lag; FSR in the game menu is the right upscaler under D3DMetal.)
     if e["WINEMSYNC"] == nil { e["WINEMSYNC"] = "1" }
-    // On battery, or when the Mac is thermally throttled (§7.8): 60 fps cap in D3DMetal and DXMT, DXMT renders at 2/3 and MetalFX-upscales. Off again when plugged in and cool.
+    // On battery, in Low Power Mode or thermally throttled (§7.8, item 32): 60 fps cap in D3DMetal and DXMT, DXMT renders at 2/3 and MetalFX-upscales.
+    // Off again when plugged in, Low Power Mode off and cool.
     // D3DM_MAX_FPS only where the installed D3DMetal documents it (4.0 beta); 3.0 ignores it, and the launch check says the cap isn't available.
     if e["D3DM_MAX_FPS"] == nil, batteryCapWanted() {
         if d3dmetalFrameCap() { e["D3DM_MAX_FPS"] = "60" }

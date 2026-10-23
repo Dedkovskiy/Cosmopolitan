@@ -30,5 +30,12 @@ n=$(note); e=$(envcap)
 print -r -- "ok: D3DMetal 4.0 beta 3 on battery → '$n'; env: $e"
 s=$(summary); [[ "$s" == *"(D3DMetal 4.0 beta 3 games capped too)"* && "$s" != *"not available"* ]] || fail "4.0b3: Automatic summary says '$s'"
 print -r -- "ok: with 4.0 beta 3 the Automatic summary says: '$s'"
+# Item 32: the same profile in Low Power Mode and under serious thermal pressure, and off when plugged in and cool.
+for st in lowpower thermal plugged; do
+  e=$(COSMO_TEST_POWER=$st ct --print-env B 2>&1 | grep -E '^DXMT_CONFIG=' ); r=$(COSMO_TEST_POWER=$st ct --status 2>&1 | sed -n 's/^battery profile: //p')
+  if [[ $st == plugged ]]; then [[ -z "$e" && "$r" == off ]] || fail "plugged in and cool: profile '$r', env '$e'"
+  else [[ -n "$e" && "$r" != off ]] || fail "$st: profile '$r', env '$e'"; fi
+  print -r -- "ok: $st → battery profile: $r${e:+ ($e)}"
+done
 tw_check || fail "your real data changed"
 print "PASS battery_cap"

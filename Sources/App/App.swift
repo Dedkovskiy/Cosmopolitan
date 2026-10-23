@@ -100,7 +100,7 @@ let updater = SPUStandardUpdaterController(startingUpdater: !isTestBuild, update
             }
         }
         case "--check": if i + 2 < a.count { let n = m.launchNeeds(m.programs.first { realPath($0) == realPath(a[i + 2]) } ?? a[i + 2]); m.log += n.note + "drivers override: \(n.drivers ?? ["(bottle setting)"]) verbs: \(n.verbs) overrides: \(n.overrides) env: \(n.env) args: \(n.args) desktop: \(n.desktop) light: \(n.status == .green ? "green" : n.status == .yellow ? "yellow" : "red")\n" }
-        case "--status": m.log += "d3dmetal: " + (m.d3dmetalNow.map { "\($0.pretty) from \($0.source); features: " + $0.features.sorted().joined(separator: " ") + (d3dmetalOK ? "; license accepted" : "; license not accepted") } ?? "not installed") + "\n"; m.log += "drivers: \(m.driverStatus.0 == .green ? "green" : m.driverStatus.0 == .yellow ? "yellow" : "red") (\(m.driverStatus.1))\ncontroller: \(m.padStatus.0 == .green ? "green" : m.padStatus.0 == .yellow ? "yellow" : "red") (\(m.padStatus.1))\nbattery summary: \(m.batterySummary())\n"
+        case "--status": m.log += "d3dmetal: " + (m.d3dmetalNow.map { "\($0.pretty) from \($0.source); features: " + $0.features.sorted().joined(separator: " ") + (d3dmetalOK ? "; license accepted" : "; license not accepted") } ?? "not installed") + "\n"; m.log += "drivers: \(m.driverStatus.0 == .green ? "green" : m.driverStatus.0 == .yellow ? "yellow" : "red") (\(m.driverStatus.1))\ncontroller: \(m.padStatus.0 == .green ? "green" : m.padStatus.0 == .yellow ? "yellow" : "red") (\(m.padStatus.1))\nbattery summary: \(m.batterySummary())\nbattery profile: \(powerReason() ?? "off")\n"
         default: m.troubleshoot() }
         print(m.log); exit(cliExitCode)
     }

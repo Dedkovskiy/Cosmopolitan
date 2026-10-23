@@ -4,7 +4,7 @@ extension Model {
     // §6.3 Power and thermal hints, logged at launch when they would change the experience.
     func powerHints() -> String {
         var out = ""
-        if sh("pmset -g | grep -i lowpowermode | awk '{print $2}'") == "1" { out += "⚠ Low Power Mode is on: expect lower frame rates (System Settings › Battery).\n" }
+        if ProcessInfo.processInfo.isLowPowerModeEnabled { out += "⚠ Low Power Mode is on: the battery profile is used (60 fps cap, lighter rendering); System Settings › Battery turns it off.\n" }
         if let l = Int(sh("pmset -g therm 2>/dev/null | awk '/CPU_Speed_Limit/{print $3}'")), l < 100 { out += "⚠ Thermal pressure: CPU limited to \(l)% right now; let the Mac cool or lower settings.\n" }
         if onBattery() { out += "On battery: DXMT games are capped at 60 fps with lighter rendering; Direct3D 12 games " + (d3dmetalFrameCap() ? "are capped at 60 fps by D3DMetal.\n" : "are not capped (this D3DMetal has no frame limiter).\n") }
         return out
@@ -17,10 +17,15 @@ extension Model {
     }
 }
 
-// The battery cap applies on battery, or when macOS reports serious thermal pressure. Test build only: COSMO_TEST_ON_BATTERY=1 simulates battery.
-func batteryCapWanted() -> Bool {
-    if isTestBuild, ProcessInfo.processInfo.environment["COSMO_TEST_ON_BATTERY"] == "1" { return true }
-    return onBattery() || ProcessInfo.processInfo.thermalState.rawValue >= ProcessInfo.ThermalState.serious.rawValue
+// The battery profile applies on battery, in Low Power Mode, or when macOS reports serious thermal pressure (item 32: not only unplugged).
+// Test build only: COSMO_TEST_POWER=battery|lowpower|thermal|plugged fixes the state (COSMO_TEST_ON_BATTERY=1 = battery).
+func batteryCapWanted() -> Bool { powerReason() != nil }
+func powerReason() -> String? {
+    let p = ProcessInfo.processInfo, t = isTestBuild ? (p.environment["COSMO_TEST_POWER"] ?? (p.environment["COSMO_TEST_ON_BATTERY"] == "1" ? "battery" : nil)) : nil
+    if let t { return ["battery": "on battery", "lowpower": "Low Power Mode", "thermal": "serious thermal pressure"][t] }
+    if onBattery() { return "on battery" }
+    if p.isLowPowerModeEnabled { return "Low Power Mode" }
+    return p.thermalState.rawValue >= ProcessInfo.ThermalState.serious.rawValue ? "serious thermal pressure" : nil
 }
 // Whether the installed D3DMetal has its documented frame limiter (D3DM_MAX_FPS, in the 4.0 beta Read Me; absent from 3.0). Cached per framework file.
 private let frameCapLock = NSLock()
