@@ -26,33 +26,13 @@ extension Model {
         if fresh < src { try? fm.removeItem(atPath: copy); try? fm.copyItem(atPath: wineBin, toPath: copy) }   // refresh after an engine update
         return fm.fileExists(atPath: copy) ? copy : wineBin
     }
+    // The Dock/Launchpad entry of one game (the same launcher the Library keeps for every game, item 37), shown in Finder.
     func makeShortcut(_ exe: String, reveal: Bool = true) {
-        let name = appName(exe), fm = FileManager.default
-        let app = NSHomeDirectory() + "/Applications/Cosmopolitan Apps/\(name).app"
-        try? fm.removeItem(atPath: app)
-        try? fm.createDirectory(atPath: app + "/Contents/MacOS", withIntermediateDirectories: true)
-        try? fm.createDirectory(atPath: app + "/Contents/Resources", withIntermediateDirectories: true)
-        let (win, args) = launchCmd(exe)
-        let exports = launchEnv(selected).map { "export \($0.key)='\($0.value)'" }.joined(separator: "\n")
-        let script = "#!/bin/sh\nps -axo command | grep -v grep | grep -q -F '\(winPath(exe))' && exit 0\n\(exports)\nexec '\(loaderNamed(exe))' '\(win)' \(args.joined(separator: " "))\n"
-        fm.createFile(atPath: app + "/Contents/MacOS/launch", contents: Data(script.utf8), attributes: [.posixPermissions: 0o755])
-        var icon = ""
-        if let t = icons[exe]?.tiffRepresentation, let png = NSBitmapImageRep(data: t)?.representation(using: .png, properties: [:]) {
-            let tmp = app + "/Contents/Resources/icon.png"
-            try? png.write(to: URL(fileURLWithPath: tmp))
-            let sips = Process(); sips.executableURL = URL(fileURLWithPath: "/usr/bin/sips")
-            sips.arguments = ["-s", "format", "icns", tmp, "--out", app + "/Contents/Resources/icon.icns"]
-            sips.standardOutput = FileHandle.nullDevice; sips.standardError = FileHandle.nullDevice
-            runToEnd(sips)
-            try? fm.removeItem(atPath: tmp)
-            icon = "<key>CFBundleIconFile</key><string>icon</string>"
-        }
-        let plist = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><plist version=\"1.0\"><dict><key>CFBundleName</key><string>\(name)</string><key>CFBundleExecutable</key><string>launch</string><key>CFBundleIdentifier</key><string>local.cosmopolitan.\(name.filter { $0.isLetter || $0.isNumber })</string><key>CFBundlePackageType</key><string>APPL</string><key>LSApplicationCategoryType</key><string>public.app-category.games</string>\(icon)</dict></plist>"   // games category: macOS Game Mode can engage for fullscreen play
-        try? plist.write(toFile: app + "/Contents/Info.plist", atomically: true, encoding: .utf8)
-        let cs = Process(); cs.executableURL = URL(fileURLWithPath: "/usr/bin/codesign"); cs.arguments = ["--force", "--sign", "-", app]
-        runToEnd(cs)
+        let png = icons[exe].flatMap { $0.tiffRepresentation }.flatMap { NSBitmapImageRep(data: $0)?.representation(using: .png, properties: [:]) }
+        log += Model.writeLaunchers(library.filter { $0 != exe }.map { (appName($0), nil) } + [(appName(exe), png)], app: Bundle.main.bundlePath)
+        let app = Model.launchersDir + "/\(appName(exe).replacingOccurrences(of: "/", with: "-")).app"
         guard reveal else { return }
-        log += "Shortcut created: \(app) — drag it to the Dock.\n"
+        log += "Shortcut: \(app). Drag it to the Dock.\n"
         NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: app)])
     }
 

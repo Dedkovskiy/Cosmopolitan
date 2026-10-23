@@ -469,6 +469,8 @@ Each item has its own commit and test (`tests/safety/<name>.sh`, all in `tests/r
 
 **36 Cleanup suggestions.** Shader caches of games no longer installed, leftover installers, Windows and user temp files, biggest first, in Settings; only the chosen items go, after a confirmation (the CLI needs `--yes`). A bottle's temp folders are kept while a program runs in it (an installer may still need them).
 
+**37 Launchers.** A launcher app per Library game in `~/Applications/Cosmopolitan Apps` (Dock, Launchpad, Spotlight) that opens `cosmopolitan://launch?name=…` with the Cosmopolitan that made it, so every start goes through the launch checks; launchers of games that are gone are removed (only ours, marked in their Info.plist). App Intents: "Play a game" with the Library's games as entities, App Shortcuts phrases "Play <game> in Cosmopolitan"; `scripts/build.sh` extracts `Metadata.appintents` with Xcode's `appintentsmetadataprocessor` (whole-module build, constant values). Test builds strip that metadata so their intents never reach Shortcuts.
+
 ## Sources
 
 **Apple Read Me files** (primary sources on this Mac, quoted verbatim above):

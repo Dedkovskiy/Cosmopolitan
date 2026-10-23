@@ -249,7 +249,7 @@ import Network
         // The Library shows every bottle's games in one grid (item 39); the launch check works per game, whatever bottle is selected.
         library = (bottles.filter { $0 != selected && FileManager.default.fileExists(atPath: "\(bottlesDir)/\($0)/drive_c") }.flatMap { programsIn($0) } + programs)
             .sorted { appName($0).lowercased() < appName($1).lowercased() }
-        verifyAll(); fetchArt()
+        verifyAll(); fetchArt(); if !cliMode { syncLaunchers() }   // item 37: a Dock/Launchpad entry per game
         if watchedBottle != selected { watchBottle(); excludeFromBackups(selected) }
         for b in unpluggedBottles() { log += "Bottle \(b) is on a drive that is not connected; it reappears when the drive is plugged in.\n" }
     }

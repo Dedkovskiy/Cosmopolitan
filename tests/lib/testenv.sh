@@ -25,6 +25,7 @@ testenv_init() {
   # Its own settings; never a cosmopolitan:// handler and no update checks (GUI screenshots run it as a normal app).
   TESTID="local.cosmopolitan.${${T:t}#cosmotest.}.test"
   /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $TESTID" -c "Set :CFBundleName CosmopolitanTest" -c "Delete :CFBundleURLTypes" -c "Set :SUEnableAutomaticChecks false" "$T/CosmopolitanTest.app/Contents/Info.plist"
+  rm -rf "$T/CosmopolitanTest.app/Contents/Resources/Metadata.appintents"   # its intents never reach your Shortcuts
   codesign --force --deep --sign - "$T/CosmopolitanTest.app" 2>/dev/null
   if [[ -z "${TESTENV_NO_ENGINE:-}" ]]; then   # a --setup test wants an empty support folder
     cp -cR "$REAL_SUPPORT/engines/$ENGINE" "$REAL_SUPPORT/engines/renderer" "$TS/engines/" 2>/dev/null

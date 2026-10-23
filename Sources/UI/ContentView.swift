@@ -57,8 +57,9 @@ struct ContentView: View {
         } message: { Text(uninstallExe.map { m.uninstallKind($0) + ". Saves and settings in the bottle stay." } ?? "") }
         .onOpenURL { url in   // §7.7 Shortcuts / Siri: a Shortcut that opens cosmopolitan://launch?name=Steam (Siri runs Shortcuts by name)
             guard url.scheme == "cosmopolitan", url.host == "launch", let q = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "name" })?.value else { return }
-            if let p = m.programs.first(where: { appName($0).localizedCaseInsensitiveCompare(q) == .orderedSame }) ?? m.programs.first(where: { appName($0).localizedCaseInsensitiveContains(q) }) { m.launch(p) }
-            else { m.log += "Shortcut asked for “\(q)”: no such program in \(m.selected).\n" }
+            // Every bottle's games (the Library), started the Library's way (item 37: Dock/Launchpad entries and Shortcuts come through here).
+            if let p = m.library.first(where: { appName($0).localizedCaseInsensitiveCompare(q) == .orderedSame }) ?? m.library.first(where: { appName($0).localizedCaseInsensitiveContains(q) }) { m.play(p) }
+            else { m.log += "Shortcut asked for “\(q)”: no such game in the Library.\n" }
         }
         .onDrop(of: [.fileURL], isTargeted: nil) { ps in
             ps.first?.loadItem(forTypeIdentifier: "public.file-url") { d, _ in
