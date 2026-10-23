@@ -13,7 +13,7 @@ struct MacFacts {
         let v = ProcessInfo.processInfo.operatingSystemVersion; f.macOS = "\(v.majorVersion).\(v.minorVersion)"
         f.ramGB = Int(ProcessInfo.processInfo.physicalMemory / 1_073_741_824)
         f.freeGB = Int(((try? URL(fileURLWithPath: NSHomeDirectory()).resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]))?.volumeAvailableCapacityForImportantUsage ?? 0) / 1_000_000_000)
-        f.rosetta = FileManager.default.fileExists(atPath: "/Library/Apple/usr/libexec/oah/libRosettaRuntime") && !(isTestBuild && ProcessInfo.processInfo.environment["COSMO_TEST_NO_ROSETTA"] == "1")
+        f.rosetta = Model.rosettaInstalled()
         f.controller = !nativeControllers().isEmpty
         for s in Store.allCases {
             let bottles = m.bottles.filter { b in s.exes.contains { FileManager.default.fileExists(atPath: "\(bottlesDir)/\(b)/drive_c/\($0)") } }

@@ -11,6 +11,11 @@ ct --newbottle H >/dev/null 2>&1; [[ -d "$(tprefix H)/drive_c" ]] || fail "throw
 mono() { [[ -d "$(tprefix H)/drive_c/windows/mono" ]]; }; poll 180 mono || fail "Wine Mono never arrived in the new bottle"
 health() { ct --health 2>&1 | grep '^health: '; }
 h=$(health); [[ "$h" == "health: no problems" ]] || fail "a fresh home already has problems: $h"
+# P2 (crossover-oracle-findings.md): an installed Mac without Rosetta (simulated) can't start any game; only onboarding used to check.
+r=$(COSMO_TEST_NO_ROSETTA=1 ct --health 2>&1 | grep '^health: rosetta'); [[ -n "$r" ]] || fail "no Rosetta problem reported without Rosetta"
+f=$(COSMO_TEST_NO_ROSETTA=1 COSMO_TEST_ANSWER=yes ct --health-fix 2>&1 | grep -E '^ASK: Install Rosetta|installer not started')
+[[ "$f" == *"apple.com/legal/sla"* && "$f" == *"installer not started"* ]] || fail "the Rosetta fix didn't ask with Apple's licence first: $f"
+print -r -- "ok: without Rosetta: ${r#health: }; its Fix asks first (Apple's licence named) and the test build starts no installer"
 print "ok: a fresh home: $h"
 f=$(ls "$TS/engines/renderer/dxmt/wine/x86_64-windows/"*.dll | head -1); cp "$f" "$f.x" && mv "$f.x" "$f" && printf 'Z' >> "$f"
 rm -rf "$(tprefix H)/drive_c/windows/mono" "$(tprefix H)/.dotnet-verified"

@@ -1,10 +1,14 @@
 import Foundation
 
-// Item 35: a health check when the app starts. Driver folders that came from the pinned template still match it (one you updated through
-// Update… keeps <name>.old and is yours, so it isn't flagged); every bottle has Wine Mono; the registry ledger holds no settings of programs
-// that are gone; at least 10 GB are free. Problems show in the Library with a Fix button, and "Fix this game" fixes its bottle's first.
+// Item 35: a health check when the app starts. Rosetta is installed (only onboarding used to check, and an installed Mac can be without
+// it: then no game starts); driver folders that came from the pinned template still match it (one you updated through Update… keeps
+// <name>.old and is yours, so it isn't flagged); every bottle has Wine Mono; the registry ledger holds no settings of programs that are
+// gone; at least 10 GB are free. Problems show in the Library with a Fix button, and "Fix this game" fixes its bottle's first.
 extension Model {
-    struct HealthProblem: Sendable, Hashable { let kind: String; let target: String; let text: String }   // kind: graphics, dotnet, stale, disk
+    struct HealthProblem: Sendable, Hashable { let kind: String; let target: String; let text: String }   // kind: rosetta, graphics, dotnet, stale, disk
+    nonisolated static func rosettaInstalled() -> Bool {
+        FileManager.default.fileExists(atPath: "/Library/Apple/usr/libexec/oah/libRosettaRuntime") && !(isTestBuild && ProcessInfo.processInfo.environment["COSMO_TEST_NO_ROSETTA"] == "1")
+    }
     nonisolated static func freeGB() -> Int {
         if isTestBuild, let t = ProcessInfo.processInfo.environment["COSMO_TEST_FREE_GB"], let n = Int(t) { return n }
         return Int(((try? URL(fileURLWithPath: NSHomeDirectory()).resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]))?.volumeAvailableCapacityForImportantUsage ?? 0) / 1_000_000_000)
@@ -12,6 +16,7 @@ extension Model {
     // programs: each bottle's program file names (lower-case), for the stale-settings check.
     nonisolated static func healthCheck(_ programs: [String: Set<String>]) -> [HealthProblem] {
         var out: [HealthProblem] = [], fm = FileManager.default
+        if !rosettaInstalled() { out.append(HealthProblem(kind: "rosetta", target: "", text: "Rosetta is missing: Windows games need Apple's Rosetta to run on this Mac.")) }
         for (part, pin) in Pins.templateTrees where part.hasPrefix("SharedSupport/renderer/") {
             let name = (part as NSString).lastPathComponent, dir = "\(driversDir)/\(name)"
             guard fm.fileExists(atPath: dir), !fm.fileExists(atPath: dir + ".old"), treeHash(dir) != pin else { continue }
@@ -38,6 +43,10 @@ extension Model {
     func fixHealth(bottle: String? = nil) {
         for p in healthProblems where bottle == nil || p.target == bottle || p.kind == "graphics" {
             switch p.kind {
+            case "rosetta":   // as onboarding: nothing before the yes; macOS then asks for an administrator password (never in a test build)
+                guard ask("Install Rosetta?", "Windows games need Apple's Rosetta. Installing it means agreeing to Apple's software licence (apple.com/legal/sla). macOS asks for an administrator password.", yes: "Agree and Install") else { continue }
+                if isTestBuild { log += "Rosetta: test build, installer not started.\n"; continue }
+                Task.detached { _ = shell("osascript -e 'do shell script \"/usr/sbin/softwareupdate --install-rosetta --agree-to-license\" with administrator privileges'"); await MainActor.run { self.runHealthCheck() } }
             case "graphics":
                 guard let app = Pins.verifiedTemplate(), ask("Put back the tested graphics component (\(p.target))?", "It differs from the version Cosmopolitan installed; your current copy is kept as \(p.target).old.", yes: "Put back") else { continue }
                 let dst = "\(driversDir)/\(p.target)"
