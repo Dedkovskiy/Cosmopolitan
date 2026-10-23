@@ -1,6 +1,7 @@
 #!/bin/zsh
 # Shared test environment. Source it, then call testenv_init. Gives:
-#   ct ARGS…        the test build (bundle id local.cosmopolitan.test → its own settings) with a throwaway home (HOME, CFFIXED_USER_HOME
+#   ct ARGS…        the test build (bundle id local.cosmopolitan.<id>.test, unique per throwaway home: macOS keeps preferences per user,
+#                   not per HOME, so each environment gets its own domain, deleted at cleanup) with a throwaway home (HOME, CFFIXED_USER_HOME
 #                   and COSMO_TEST_HOME all point at it, so the app's support folder, bottles and log live there)
 #   tw_snapshot / tw_check   tripwire over YOUR real data: bottles folder, Cosmopolitan log, Steam bottle, running Steam and app
 #                   (content hashes via tests/lib/tw.py; notes and failures name the changed files, and the keys for .reg files)
@@ -22,7 +23,8 @@ testenv_init() {
   mkdir -p "$TS/engines" "$TH/Library/Logs"
   cp -cR "$TESTENV_REPO/Cosmopolitan.app" "$T/CosmopolitanTest.app"
   # Its own settings; never a cosmopolitan:// handler and no update checks (GUI screenshots run it as a normal app).
-  /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier local.cosmopolitan.test" -c "Set :CFBundleName CosmopolitanTest" -c "Delete :CFBundleURLTypes" -c "Set :SUEnableAutomaticChecks false" "$T/CosmopolitanTest.app/Contents/Info.plist"
+  TESTID="local.cosmopolitan.${${T:t}#cosmotest.}.test"
+  /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $TESTID" -c "Set :CFBundleName CosmopolitanTest" -c "Delete :CFBundleURLTypes" -c "Set :SUEnableAutomaticChecks false" "$T/CosmopolitanTest.app/Contents/Info.plist"
   codesign --force --deep --sign - "$T/CosmopolitanTest.app" 2>/dev/null
   if [[ -z "${TESTENV_NO_ENGINE:-}" ]]; then   # a --setup test wants an empty support folder
     cp -cR "$REAL_SUPPORT/engines/$ENGINE" "$REAL_SUPPORT/engines/renderer" "$TS/engines/" 2>/dev/null
@@ -95,9 +97,11 @@ tw_snapshot() {
 # Whether your own Cosmopolitan app or your Steam is running (TW_FAKE_APP / TW_FAKE_STEAM = 0/1 override them, for the rule test only).
 _tw_app_running() { [[ -n "${TW_FAKE_APP:-}" ]] && { [[ "$TW_FAKE_APP" == 1 ]]; return; }; [[ -n "$(pgrep -f "$TESTENV_REPO/Cosmopolitan.app/Contents/MacOS/Cosmopolitan\$|/Applications/Cosmopolitan.app/Contents/MacOS/Cosmopolitan\$")" ]]; }
 _tw_steam_running() { [[ -n "${TW_FAKE_STEAM:-}" ]] && { [[ "$TW_FAKE_STEAM" == 1 ]]; return; }; [[ -n "$(_tw_real_steam)" ]]; }
-# Your Steam: a steam.exe whose working folder is inside your real bottles (Wine keeps it on the Windows current directory), never a
-# stand-in Steam a test runs in a throwaway bottle.
-_tw_real_steam() { local p; for p in $(pgrep -f 'Steam.steam\.exe'); do [[ "$(lsof -a -p $p -d cwd -Fn 2>/dev/null | sed -n 's/^n//p')" == "$REAL_SUPPORT/bottles/"* ]] && print $p; done | sort -n | head -1; }
+# Your Steam: the process whose program (the command line's first word) is Steam\steam.exe and whose working folder is inside your real
+# bottles (Wine keeps it on the Windows current directory). Not a steamwebhelper that mentions steam.exe in its arguments, not a test's
+# stand-in Steam in a throwaway bottle.
+_tw_real_steam() { local p c; for p in $(pgrep -f 'steam\.exe'); do c=$(ps -o command= -p $p 2>/dev/null); [[ "${c%% -*}" == *'\Steam\steam.exe' ]] || continue
+  [[ "$(lsof -a -p $p -d cwd -Fn 2>/dev/null | sed -n 's/^n//p')" == "$REAL_SUPPORT/bottles/"* ]] && print $p; done | sort -n | head -1; }
 tw_check() {
   emulate -L zsh
   local ok=1 now="$(_tw_state)" keys="$(_tw_regkeys)"
@@ -136,6 +140,7 @@ tw_sandbox_profile() {
 testenv_cleanup() {
   emulate -L zsh
   [[ -n "${T:-}" && "$T" == /private/tmp/cosmotest.* ]] || return 0
+  [[ -n "${TESTID:-}" ]] && defaults delete "$TESTID" >/dev/null 2>&1   # the test build's own preferences domain, never your app's
   local ws="$TS/engines/$ENGINE/wswine.bundle/bin/wineserver" b
   for b in "$TS"/bottles/*(N/); do WINEPREFIX="$b" "$ws" -k 2>/dev/null; done
   for b in "$TS"/bottles/*(N/); do WINEPREFIX="$b" perl -e 'alarm 30; exec @ARGV' -- "$ws" -w 2>/dev/null; done   # gone before the folder is
