@@ -47,9 +47,10 @@ testenv_init() {
 ct() { sandbox-exec -p "$(tw_sandbox_profile)" env CFFIXED_USER_HOME="$TH" HOME="$TH" COSMO_TEST_HOME="$TH" "$T/CosmopolitanTest.app/Contents/MacOS/Cosmopolitan" "$@"; }
 tprefix() { print -r -- "$TS/bottles/$1"; }
 # poll MAX_SECONDS CMD…: runs CMD every 0.5 s until it succeeds or MAX_SECONDS pass; POLL_TOOK = seconds it actually took.
-poll() { local max=$1 t0=$EPOCHREALTIME; shift
-  while ! "$@" >/dev/null 2>&1; do (( EPOCHREALTIME - t0 > max )) && { POLL_TOOK=$(printf '%.1f' $(( EPOCHREALTIME - t0 ))); return 1; }; sleep 0.5; done
-  POLL_TOOK=$(printf '%.1f' $(( EPOCHREALTIME - t0 ))); }
+# Its locals are prefixed: zsh scoping is dynamic, so a plain "t0" here would shadow a test's own t0 inside CMD.
+poll() { local _poll_max=$1 _poll_t0=$EPOCHREALTIME; shift
+  while ! "$@" >/dev/null 2>&1; do (( EPOCHREALTIME - _poll_t0 > _poll_max )) && { POLL_TOOK=$(printf '%.1f' $(( EPOCHREALTIME - _poll_t0 ))); return 1; }; sleep 0.5; done
+  POLL_TOOK=$(printf '%.1f' $(( EPOCHREALTIME - _poll_t0 ))); }
 # tlaunch BOTTLE EXE [MAX]: launches through the test build with --wait (it polls every 0.5 s, up to MAX, default 120 s) and returns its
 # exit status: the program's own exit code, or 124 if it was still running at MAX. LAUNCH_CODE = that status, LAUNCH_TOOK = seconds,
 # LAUNCH_LINE = the app's own line.
