@@ -41,6 +41,9 @@ up() { [[ -n "$(steampid T)" && -n "$(steampid U)" ]]; }; poll 60 up || fail "th
 st0=$(steampid T) su0=$(steampid U) real0=$(pgrep -f 'Steam.steam\.exe' | sort | tr '\n' ' ')
 out=$(ct --steam-busy T 2>&1 | grep '^steam in'); [[ "$out" == "steam in T: running; idle" ]] || fail "busy check: $out"
 print "ok: stand-in Steams running in T (pid $st0) and U (pid $su0); '$out'"
+# Each bottle's store client is listed once: the selected bottle's Steam used to be added to every bottle's list (a duplicate the AVX scan crashed on).
+lib=$(ct --status 2>&1 | grep '^library: '); [[ "$lib" == *", 0 listed twice" ]] || fail "the Library lists a program twice: $lib"
+print -r -- "ok: $lib"
 
 # 1. Downloading: the restart waits, then happens by itself once the download ends.
 manifest 1026; out=$(ct --steam-busy T 2>&1 | grep '^steam in'); [[ "$out" == "steam in T: running; busy: downloading Fake Game" ]] || fail "busy check while downloading: $out"

@@ -12,7 +12,7 @@ extension Model {
     func avx512Count(_ exe: String) -> Int { Int(((try? String(contentsOfFile: avxCache(exe), encoding: .utf8)) ?? "").split(separator: ",").dropFirst().first.map(String.init)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "") ?? 0 }
     // Native C++ decoder (Sources/Native/avxscan.cpp): walks the code sections instruction by instruction, ~0.1 s for 25 MB.
     func scanAVX(_ exes: [String]) {
-        let todo = exes.filter { avxCount($0) == nil && exeEra($0).kind == "pe" }
+        let todo = Array(Set(exes.filter { avxCount($0) == nil && exeEra($0).kind == "pe" }))   // a program listed twice is scanned once
         guard !todo.isEmpty else { return }
         let caches = Dictionary(uniqueKeysWithValues: todo.map { ($0, avxCache($0)) })
         Task.detached(priority: .background) {

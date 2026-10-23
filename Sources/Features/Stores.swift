@@ -39,7 +39,7 @@ extension Model {
         if n.hasPrefix("galaxyclient") || n.hasPrefix("epicgameslauncher") { return ["dxmt", "d9vk", "cnc_ddraw"].filter { installedDrivers().contains($0) } }
         return nil
     }
-    func storeExe(_ s: Store) -> String? { s.exes.map { "\(bottlesDir)/\(selected)/drive_c/\($0)" }.first { FileManager.default.fileExists(atPath: $0) } }
+    func storeExe(_ s: Store, in bottle: String? = nil) -> String? { s.exes.map { "\(bottlesDir)/\(bottle ?? selected)/drive_c/\($0)" }.first { FileManager.default.fileExists(atPath: $0) } }
 
     // Epic's launcher self-updates on every start: it stages the new build under ProgramData\Epic\EpicGamesLauncher\Data\Update\Install,
     // reports success, but under Wine the final move into Program Files never happens, so it restarts forever ("Requiring 1223 files"
@@ -137,7 +137,7 @@ extension Model {
                 }
             }
         }
-        for s in Store.allCases { if let e = storeExe(s) { out.append(e) } }   // store clients that live deeper than the plain scan looks (Epic's Portal/Binaries/Win64)
+        for s in Store.allCases { if let e = storeExe(s, in: bottle) { out.append(e) } }   // store clients that live deeper than the plain scan looks (Epic's Portal/Binaries/Win64)
         epicGames = [:]
         // Legendary is a Python program (~0.4 s per call): never run it inside a scan. Use the last answer and refresh it in the
         // background; when the installed list changed, scan once more.
