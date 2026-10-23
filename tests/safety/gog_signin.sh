@@ -49,8 +49,8 @@ if [[ -n "${SHOTS:-}" ]]; then   # the sheet in the GUI test build
     sandbox-exec -p "$(tw_sandbox_profile)" env CFFIXED_USER_HOME="$TH" HOME="$TH" COSMO_TEST_HOME="$TH" COSMO_TEST_SHEET=gog-login COSMO_TEST_LGOG="$T/lgog" \
       ${2:+COSMO_TEST_GOG_LOGIN_URL="$2"} "$T/CosmopolitanTest.app/Contents/MacOS/Cosmopolitan" >/dev/null 2>&1 & local app=$!
     seen() { grep -q "$1" "$L" 2>/dev/null; }; win() { "$T/winshot" $app "$T/probe" >/dev/null 2>&1; }
-    poll 30 win || fail "$1: no window"
-    if [[ -n "$3" ]]; then poll 30 seen "$3" || fail "$1: '$3' never appeared"; sleep 1; else sleep 20; fi   # 1 s: let the sheet redraw
+    poll 30 win || { kill $app; fail "$1: no window"; }
+    if [[ -n "$3" ]]; then poll 30 seen "$3" || { kill $app; fail "$1: '$3' never appeared"; }; sleep 1; else sleep 20; fi   # 1 s: let the sheet redraw
     "$T/winshot" $app "$SHOTS/gog-$1" | sed 's/^/  shot: /'; kill $app; wait $app 2>/dev/null
   }
   page() { python3 -I -c 'import sys, urllib.parse; print("data:text/html," + urllib.parse.quote("<body style=\"font:16px -apple-system\">Stand-in login page (test)<script>setTimeout(function(){location.href=\"" + sys.argv[1] + "\"},1500)</script>"))' "$1"; }
