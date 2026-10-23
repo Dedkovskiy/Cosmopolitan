@@ -102,7 +102,15 @@ extension Model {
             acNames += c.anticheat.filter { !acNames.contains($0) }
             // Highball's curated backend only orders the choice inside the driver plan above (it cannot pick a driver lacking the game's DLLs).
             if !c.renderer.isEmpty { parts.append("Highball \(c.hbStatus): \(c.renderer)") }
-            for v in c.verbs { let r = Model.runtimesFor(verb: v); if r.isEmpty { if !verbs.contains(v) { verbs.append(v) } } else { runtimes.formUnion(r) } }   // pinned Microsoft runtimes instead of winetricks
+            let applied = Model.winetricksApplied("\(bottlesDir)/\(bottle)")
+            for v in c.verbs {
+                // The Witcher 3 5.0 turns on Streamline, ray tracing and frame generation when it can't see Wine, which Proton's fix hides:
+                // right with an NVIDIA card on Linux, a crash at start under D3DMetal. So not on D3DMetal, and undone once if it was applied.
+                if v == "hidewineexports=enable", plan.drivers.contains("d3dmetal") { if applied["hidewineexports"] == "enable" { verbs.append("hidewineexports=disable") }; continue }
+                let kv = v.split(separator: "=", maxSplits: 1).map(String.init)
+                if applied[kv[0]] == (kv.count == 2 ? kv[1] : "") { continue }   // winetricks.log says it's in: no second run (it stops Steam)
+                let r = Model.runtimesFor(verb: v); if r.isEmpty { if !verbs.contains(v) { verbs.append(v) } } else { runtimes.formUnion(r) }   // pinned Microsoft runtimes instead of winetricks
+            }
             n.overrides = c.overrides; n.env = c.env; n.args = c.args
             if !(c.verbs.isEmpty && c.overrides.isEmpty && c.env.isEmpty && c.args.isEmpty) { parts.append("applying community fixes" + (c.overrides.isEmpty ? "" : " (overrides: " + c.overrides.map { "\($0.0)=\($0.1)" }.joined(separator: ", ") + ")") + (c.args.isEmpty ? "" : " args " + c.args.joined(separator: " "))) }
             if !c.launchArgs.isEmpty { n.args += c.launchArgs.split(separator: " ").map(String.init) }

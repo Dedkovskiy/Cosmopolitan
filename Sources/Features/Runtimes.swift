@@ -15,6 +15,15 @@ extension Model {
         if n & UInt32(COSMO_NEED_VCREDIST64) != 0 { return .vcredist64 }
         return n & UInt32(COSMO_NEED_DIRECTX) != 0 ? .directx : nil
     }
+    // winetricks' own record of what it applied in a bottle (winetricks.log): the last value of each setting verb ("hidewineexports" →
+    // "enable"), "" for a plain verb.
+    nonisolated static func winetricksApplied(_ prefix: String) -> [String: String] {
+        var m: [String: String] = [:]
+        for l in ((try? String(contentsOfFile: prefix + "/winetricks.log", encoding: .utf8)) ?? "").split(separator: "\n") {
+            let kv = l.split(separator: "=", maxSplits: 1).map(String.init); m[kv[0]] = kv.count == 2 ? kv[1] : ""
+        }
+        return m
+    }
     // CD Projekt's launcher file: the configured game (the "fallback" entry, else the first) and the flag REDprelauncher takes for it.
     nonisolated static func redGame(_ dir: String) -> (exe: String, flag: String)? {
         guard let d = FileManager.default.contents(atPath: dir + "/launcher-configuration.json"), let j = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any],
