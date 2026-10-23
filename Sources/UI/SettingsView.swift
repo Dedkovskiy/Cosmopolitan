@@ -9,6 +9,7 @@ import SwiftUI
 struct SettingsView: View {
     @ObservedObject var m = Model.shared
     @AppStorage("showAdvanced") var showAdvanced = false
+    @AppStorage("onboardingDone") var onboardingDone = false
     @State var padCheck = ""
     @AppStorage("engine") var engine = defaultEngine
     @AppStorage("autostartSteam") var autostartSteam = true
@@ -43,7 +44,7 @@ struct SettingsView: View {
                 Text("Removes temporary files, crash dumps, used installers and old download caches. Games and saves are never touched.").font(.caption).foregroundStyle(.secondary)
             }
             Section("Setup") {
-                Button("Run setup again") { m.showSetup = true }
+                Button("Run setup again") { UserDefaults.standard.set(0, forKey: "onboardingStep"); onboardingDone = false }
                 Toggle("Start Steam together with Cosmopolitan", isOn: $autostartSteam)
             }
             Section {

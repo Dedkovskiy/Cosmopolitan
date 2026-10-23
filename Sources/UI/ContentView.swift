@@ -10,7 +10,7 @@ struct ContentView: View {
     @State var optText = ""
     @State var showD3DM = false
     @State var licRead = false
-    @State var showTerms = !termsAccepted()
+    @State var showTerms = false   // decided in firstStart: a fresh install accepts the terms on onboarding's Welcome screen
     @State var showSnaps = false
     @State var modExe: String? = nil
     @State var showWIR = false
@@ -22,6 +22,11 @@ struct ContentView: View {
     @State var advancedMode = false
     @State var reasonFor: String? = nil                           // the game whose status reason is shown (click on the status)
     @AppStorage("libraryHints") var hintStep = 0                  // three one-time hints: Play, Add game, the game menu
+    @AppStorage("onboardingDone") var onboardingDone = false
+    @State var showOnboarding = false
+    @State var showWhatsNew = false
+    @AppStorage("whatsNewSeen") var whatsNewSeen = ""
+    @Environment(\.openSettings) var openSettings
     @State var loginStore: String? = nil   // "epic" / "gog" while the sign-in sheet is up
     @State var loginCode = ""
     @State var loginBusy = false                          // GOG: lgogdownloader is trading the code for tokens
@@ -29,7 +34,11 @@ struct ContentView: View {
     var body: some View {
         Group { if advancedMode { advancedView } else { libraryView } }   // item 39: the Library; Advanced is the previous window
         .frame(minWidth: 760, minHeight: 600)
+        .sheet(isPresented: $showOnboarding) { OnboardingView(m: m, loginStore: $loginStore) { onboardingDone = true; showOnboarding = false } }
+        .sheet(isPresented: $showWhatsNew) { whatsNewSheet }
         .onChange(of: m.askD3DMetal) { _, v in if v { showD3DM = true; m.askD3DMetal = false } }
+        .onAppear(perform: firstStart)
+        .onChange(of: onboardingDone) { _, done in if !done { showOnboarding = true } }   // Settings › Run setup again
         .sheet(isPresented: $showWIR) { willItRunSheet }
         .sheet(isPresented: Binding(get: { modExe != nil }, set: { if !$0 { modExe = nil } })) { modsSheet }
         .sheet(isPresented: $showSnaps) { snapshotsSheet }
