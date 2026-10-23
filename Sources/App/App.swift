@@ -9,7 +9,7 @@ let updater = SPUStandardUpdaterController(startingUpdater: !isTestBuild, update
     init() {
         enterTestModeIfNeeded()   // first, before any path is computed
         let a = CommandLine.arguments
-        let modes = ["--settings", "--setup", "--session-end", "--troubleshoot", "--repair", "--input", "--find", "--status", "--check", "--update", "--launch", "--tune", "--tunesteam", "--newbottle", "--accept-d3dmetal", "--snapshot", "--rollback", "--importables", "--import", "--willitrun", "--bugreport", "--hints", "--offline", "--compress", "--shaders", "--volumes", "--offlineexe", "--uslayout", "--hudocr", "--saves", "--mods", "--addmod", "--mod", "--rumble", "--padmode", "--procs", "--clean-driver-copies", "--sweep-registry", "--tree-hash", "--install-d3dmetal", "--print-env", "--install-runtime", "--snapshots", "--bisect", "--cleanup", "--gog-signin", "--gog-redirect", "--steam-busy", "--steam-restart", "--highball-report", "--awacy-refresh"]   // --launch <bottle> <exe> [seconds] | --wait [max seconds]   // --check <bottle> <exe>: dry-run of the launch check
+        let modes = ["--settings", "--setup", "--session-end", "--troubleshoot", "--repair", "--input", "--find", "--status", "--check", "--update", "--launch", "--tune", "--tunesteam", "--newbottle", "--accept-d3dmetal", "--snapshot", "--rollback", "--importables", "--import", "--willitrun", "--bugreport", "--hints", "--offline", "--compress", "--shaders", "--volumes", "--offlineexe", "--uslayout", "--hudocr", "--saves", "--mods", "--addmod", "--mod", "--rumble", "--padmode", "--procs", "--clean-driver-copies", "--sweep-registry", "--tree-hash", "--install-d3dmetal", "--print-env", "--install-runtime", "--snapshots", "--bisect", "--cleanup", "--gog-signin", "--gog-redirect", "--steam-busy", "--steam-restart", "--highball-report", "--awacy-refresh", "--ludusavi-refresh", "--save-paths", "--backup-saves", "--check-updates"]   // --launch <bottle> <exe> [seconds] | --wait [max seconds]   // --check <bottle> <exe>: dry-run of the launch check
         guard let i = a.firstIndex(where: { modes.contains($0) }) else { return }
         cliMode = true
         let m = Model()
@@ -71,8 +71,12 @@ let updater = SPUStandardUpdaterController(startingUpdater: !isTestBuild, update
         }
         case "--highball-report": if i + 2 < a.count { m.log += (m.reportURL(a[i + 2]).flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "body" }?.value } ?? "no report") + "\n" }   // the prefilled text, nothing opened
         case "--awacy-refresh": m.log += Model.refreshAwacy(force: true) + "\n"
+        case "--ludusavi-refresh": m.log += Model.refreshLudusavi(force: true) + "\n"
+        case "--save-paths": if i + 2 < a.count { let e = m.programs.first { realPath($0) == realPath(a[i + 2]) } ?? a[i + 2]; m.log += (m.saveGame(e).map { "save game: \($0.name)\n" } ?? "save game: none\n") + m.savePaths(e).map { "save path: \($0)\n" }.joined() }
+        case "--backup-saves": if i + 2 < a.count { let e = m.programs.first { realPath($0) == realPath(a[i + 2]) } ?? a[i + 2]; if m.backupSaves(e, a.count > i + 3 ? a[i + 3] : "manual").isEmpty { m.log += "no saves found\n" } }
+        case "--check-updates": m.backupBeforeUpdates()   // what the minute timer does
         case "--snapshots": for s in m.snapshots() { m.log += "snapshot \(s.when)  \(s.reason)\n" }; m.log += "disk held only by snapshots: \(Model.snapshotDiskUse(m.selected)) bytes\n"
-        case "--bisect": if i + 2 < a.count { m.bisect(a[i + 2]); RunLoop.main.run(until: Date().addingTimeInterval(3)) }
+        case "--bisect": if i + 2 < a.count { m.bisect(m.programs.first { realPath($0) == realPath(a[i + 2]) } ?? a[i + 2]); RunLoop.main.run(until: Date().addingTimeInterval(3)) }
         case "--importables": m.log += m.importableBottles().map { "\($0.label)\t\($0.path)" }.joined(separator: "\n") + "\n"
         case "--import": if i + 3 < a.count { m.importBottle(a[i + 2], as: a[i + 3]); RunLoop.main.run(until: Date().addingTimeInterval(60)) }
         case "--tune": if i + 2 < a.count { m.log += m.tuneUnreal(a[i + 2]) ?? "nothing to tune (no settings file yet, or already tuned)\n" }

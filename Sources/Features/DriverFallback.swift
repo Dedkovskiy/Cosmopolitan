@@ -45,7 +45,7 @@ extension Model {
         }
         if d.verdict == Int32(COSMO_ASK.rawValue),   // the user chose this driver themselves: their call
            !ask("Try \(name) with \(next.name)?", "It crashed right away with \(crashed.name), the driver set in its Options.", yes: "Try \(next.name)") { return false }
-        snapshot("before driver switch: \(name) → \(next.name) (driver fallback)")
+        snapshot("before driver switch: \(name) → \(next.name) (driver fallback)"); backupSaves(exe, "before driver switch")
         let history = Model.fallbackHistory(opts).map { "\($0.crashed)@\($0.when)" } + ["\(crashed.name)@\(Model.stamp())"]
         saveOptions(exe, Model.withoutFallback(opts) + "\n\(Model.fallbackMark) \(history.joined(separator: " ")) crashed; using \(next.name)\nDRIVERS=\(next.set.joined(separator: ","))\n")
         fallbackTried.insert(exe); launchExits[exe] = nil   // a CLI --wait keeps waiting for the retry

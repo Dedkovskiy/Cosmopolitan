@@ -455,6 +455,8 @@ Each item has its own commit and test (`tests/safety/<name>.sh`, all in `tests/r
 
 **29 Anti-cheat.** `cosmo_anticheat` (C++), first match wins: kernel anti-cheat → block; AreWeAntiCheatYet Denied or Broken → block; EAC/BattlEye files, or Supported/Running/Planned → warn (on a Mac, Wine has no anti-cheat runtime even where Proton does, so online play is expected to fail); nothing known → fine. AreWeAntiCheatYet's `games.json` (MIT) is fetched at runtime into the cache, at most daily, and never bundled; looked up by Steam app id, else by name.
 
+**30 Save backups.** The Ludusavi manifest (MIT) is fetched at runtime into the cache, at most weekly, and read with a line reader for its fixed shape (no YAML library). A game's Windows save paths are resolved inside its bottle (`<winAppData>`, `<base>`, `<home>`, `<storeUserId>` → `*`, …; Linux/Mac-only and other-store rules skipped; `**` read as one level) and cloned into `support/save-backups/<game>/<stamp> <reason>/`, newest 5 kept. Taken before Repair (the whole bottle), before a driver switch (Bisect, fallback, the Direct3D 12 change) and once per pending Steam update (an app manifest with an update state, checked every minute).
+
 ## Sources
 
 **Apple Read Me files** (primary sources on this Mac, quoted verbatim above):

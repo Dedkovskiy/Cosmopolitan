@@ -8,7 +8,7 @@ extension Model {
         guard let lock = PrefixLock(r, purpose: "repair") else { log += "Repair: another repair is already running on \(selected) (\(PrefixLock.holder(r))).\n"; return }
         defer { withExtendedLifetime(lock) {} }   // held until Repair returns; released by the kernel if the app dies
         busy = true
-        snapshot("before Repair")
+        snapshot("before Repair"); backupBottleSaves(selected, "before Repair")   // item 30: saves too, kept apart from snapshots
         log += "Repair: stopping this bottle's Wine processes…\n"
         // wineserver -k/-w act on $WINEPREFIX's server only; without WINEPREFIX they'd target ~/.wine. Other bottles, other Wine builds
         // and Mac processes are never touched (this used to pkill every ".exe" command line and every wineserver on the Mac).
