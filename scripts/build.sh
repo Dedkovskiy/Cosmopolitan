@@ -15,6 +15,7 @@ xcrun appintentsmetadataprocessor --output Cosmopolitan.app/Contents/Resources -
   --xcode-version "$(xcodebuild -version | awk '/Build version/{print $3}')" --platform-family macOS --deployment-target 14.0 --target-triple "$(uname -m)-apple-macos14.0" \
   --source-file-list build/swift-sources.txt --swift-const-vals-list build/swift-consts.txt --binary-file Cosmopolitan.app/Contents/MacOS/Cosmopolitan \
   --dependency-file build/appintents.d --stringsdata-file build/appintents.stringsdata --no-app-shortcuts-localization --force 2>&1 | grep -E 'Writing|error' || true
+mv -f Cosmopolitan-[0-9]*.swiftmodule Cosmopolitan-[0-9]*.swiftdoc Cosmopolitan-[0-9]*.abi.json Cosmopolitan-[0-9]*.swiftsourceinfo build/ 2>/dev/null || true   # side outputs of the constant-value extraction (whole-module); nothing links against them
 dsymutil Cosmopolitan.app/Contents/MacOS/Cosmopolitan -o Cosmopolitan.app.dSYM 2>/dev/null
 strip -S Cosmopolitan.app/Contents/MacOS/Cosmopolitan 2>/dev/null   # app stays small; symbols live in the dSYM
 PUBKEY=$(cat Sparkle/public-key.txt 2>/dev/null); FEED=${COSMO_FEED_URL:-https://github.com/cyber-prinzesse/Cosmopolitan/releases/latest/download/appcast.xml}
