@@ -24,6 +24,7 @@ extension Model {
         return nil
     }
     func uninstall(_ exe: String) {
+        let b = bottleOf(exe); if b != selected { selected = b; scan() }   // the Library holds every bottle's games
         let name = appName(exe)
         if let g = steamGames[exe], let r = exe.range(of: "/steamapps/") {
             let steam = String(exe[..<r.lowerBound]) + "/steam.exe"

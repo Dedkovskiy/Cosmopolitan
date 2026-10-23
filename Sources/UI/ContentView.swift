@@ -54,7 +54,7 @@ struct ContentView: View {
         }
         .confirmationDialog("Uninstall \"\(uninstallExe.map(appName) ?? "")\"?", isPresented: Binding(get: { uninstallExe != nil }, set: { if !$0 { uninstallExe = nil } }), titleVisibility: .visible) {
             Button("Uninstall", role: .destructive) { if let e = uninstallExe { m.uninstall(e) }; uninstallExe = nil }
-        } message: { Text(uninstallExe.map { m.uninstallKind($0) + ". Saves and settings in the bottle stay." } ?? "") }
+        } message: { Text(uninstallExe.map { m.uninstallKind($0) + ". Saves and settings stay." } ?? "") }
         .onOpenURL { url in   // §7.7 Shortcuts / Siri: a Shortcut that opens cosmopolitan://launch?name=Steam (Siri runs Shortcuts by name)
             guard url.scheme == "cosmopolitan", url.host == "launch", let q = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "name" })?.value else { return }
             // Every bottle's games (the Library), started the Library's way (item 37: Dock/Launchpad entries and Shortcuts come through here).

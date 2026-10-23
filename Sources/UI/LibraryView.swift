@@ -1,7 +1,7 @@
 import SwiftUI
 
 // Item 39: the main window. Every bottle's games in one grid, each with Play, its status in words (the reason on hover and on click) and a
-// menu: Fix this game, Report a problem, Show in Finder. One "Add game" menu; drag and drop still works. Problems come with a Fix button.
+// menu: Fix this game, Report a problem, Show in Finder, Uninstall…. One "Add game" menu; drag and drop still works. Problems come with a Fix button.
 // No log here: a progress bar and one plain sentence. Everything else is in Advanced (Settings › Show advanced options).
 extension ContentView {
     @ViewBuilder var libraryView: some View {
@@ -85,6 +85,8 @@ extension ContentView {
                     Button("Fix this game") { m.fixGame(p) }
                     Button("Report a problem") { m.reportProblem(p) }
                     Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: p)]) }
+                    Divider()
+                    Button("Uninstall…") { uninstallExe = p }   // the same confirmation as Advanced; Steam games through Steam's own uninstall
                 } label: { Image(systemName: "ellipsis.circle").imageScale(.large) }.menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
             }
         }.padding(10).background(RoundedRectangle(cornerRadius: 10).fill(.quaternary.opacity(0.5)))
