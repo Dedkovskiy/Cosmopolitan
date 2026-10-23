@@ -2,6 +2,7 @@
 # Issue A: D3DMetal's version and features are read from the framework; installing an older or less capable one changes nothing without a
 # yes and lists what would be lost; the installed one is always kept as a backup. Fake toolkits only (no Apple files in tests).
 source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
+tw_snapshot
 fail() { print "FAIL: $*"; exit 1; }
 R="$TS/engines/renderer"; rm -rf "$R/d3dmetal" "$TS/d3dmetal-license.json"   # throwaway copies only; start without D3DMetal
 mkkit() {   # mkkit DIR VERSION TITLE FEATURE…
@@ -31,4 +32,5 @@ print "ok: with --yes 3.0 is installed; 4.0b3 kept byte-identical at d3dmetal@4.
 out=$(ct --install-d3dmetal "$T/kit4" 2>&1)
 [[ "$(st)" == "d3dmetal: 4.0 beta 3"* && -d "$R/d3dmetal@3.0" && "$out" != *"You lose"* ]] || fail "upgrade to 4.0b3 asked or lost the 3.0 backup: $out"
 print "ok: upgrading needs no yes and keeps 3.0 at d3dmetal@3.0"
+tw_check || fail "your real data changed"
 print "PASS d3dmetal_versions"

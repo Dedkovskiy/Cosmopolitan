@@ -2,7 +2,7 @@
 # Item 8: no automatic Sikarugir downloads, D3DMetal never extracted from the template, pinned engine/template enforced.
 source "${0:A:h}/../lib/testenv.sh"
 fail() { print "FAIL: $*"; exit 1; }
-REPO="$TESTENV_REPO"
+REPO="$TESTENV_REPO"; tw_snapshot
 
 # 1. The code: no "newest" Sikarugir lookups, no template download outside the pinned setup step, D3DMetal never copied from a template.
 grep -rn "NewestVersion.txt\|EngineList.txt" "$REPO/Sources" && fail "code still looks up the newest Sikarugir template or engine"
@@ -47,4 +47,5 @@ head -c 3000000 /dev/urandom > "$SK/Engines/$ENGINE.tar.xz"; head -c 3000000 /de
 out=$(COSMO_TEST_URL_WS12WineSikarugir10_0_8_tar_xz="file://$W/bad-engine.tar.xz" ct --setup 2>&1); rc=$?
 [[ $rc != 0 && "$out" == *"didn't match its pinned SHA-256"* && ! -e "$TS/engines/$ENGINE/wswine.bundle" ]] || fail "setup used an engine that doesn't match its pin (exit $rc): $(print -r -- "$out" | tail -2)"
 print "ok: setup refused an engine tarball with the wrong SHA-256 (local copy and download); nothing installed"
+tw_check || fail "your real data changed"
 print "PASS pins"

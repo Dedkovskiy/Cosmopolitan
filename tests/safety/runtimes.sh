@@ -2,6 +2,7 @@
 # Item 14: Microsoft runtimes from Microsoft, pinned (version + SHA-256), installed with the vendor's own silent switches; a wrong download
 # installs nothing; a missing DirectX-only DLL makes the launch check plan the DirectX install instead of reporting an unknown DLL.
 source "${0:A:h}/../lib/testenv.sh"; testenv_init >/dev/null || exit 1; trap testenv_cleanup EXIT
+tw_snapshot
 fail() { print "FAIL: $*"; exit 1; }
 native() { [[ -f "$1" ]] && ! grep -q "Wine builtin DLL" "$1"; }
 ct --newbottle B >/dev/null 2>&1; W="$(tprefix B)/drive_c/windows"; [[ -d "$W" ]] || fail "bottle not created"
@@ -28,4 +29,5 @@ mkdir -p "$W/../Apps"; x86_64-w64-mingw32-gcc "$T/fake.c" "$T/libfake.a" -o "$W/
 rm -f "$(tprefix B)/.runtime-directx"; out=$(ct --check B "$W/../Apps/needsdx.exe" 2>&1)
 [[ "$out" == *"installs DirectX End-User Runtime (June 2010) from Microsoft first"* && "$out" != *"missing DLLs"* && "$out" == *"light: yellow"* ]] || fail "launch check: $(print -r -- "$out" | head -2)"
 print "ok: a program importing d3dx9_99.dll gets 'installs DirectX End-User Runtime (June 2010) from Microsoft first' (yellow)"
+tw_check || fail "your real data changed"
 (( DX )) && print "PASS runtimes" || print "PASS runtimes (DirectX install itself not verified)"
