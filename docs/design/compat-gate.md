@@ -463,6 +463,8 @@ Each item has its own commit and test (`tests/safety/<name>.sh`, all in `tests/r
 
 **33 Controller on connect.** A `GCControllerDidConnect` sets the bottle's controller bus for SDL pads (DisableHidraw 1, SDL on) when it isn't, checked live with `reg query` (system.reg lags while Wine runs); left alone while a game in DualSense native mode runs.
 
+**34 Crash capture.** Every program that exits with an error leaves `support/crash-reports/<game> <stamp>.txt`: the last 80 log lines, the drivers it ran with, and the app, engine, D3DMetal, driver and macOS versions; newest 20 kept. The bug report attaches the newest (for the game it is about), with the username and home folder removed.
+
 ## Sources
 
 **Apple Read Me files** (primary sources on this Mac, quoted verbatim above):

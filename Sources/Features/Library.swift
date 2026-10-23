@@ -59,7 +59,7 @@ extension Model {
     }
     // "Report a problem": the bug report (log attached) goes to the clipboard and the prefilled report form opens; nothing is sent.
     func reportProblem(_ p: String) {
-        copyBugReport(); reportToHighball(p)
+        copyBugReport(for: p); reportToHighball(p)
         activity = "A report with the log is on the clipboard and the report form is open. Nothing has been sent."
     }
     // "Add game" › a store: open it where it is installed; otherwise it gets its own bottle (named after the store), created automatically.
