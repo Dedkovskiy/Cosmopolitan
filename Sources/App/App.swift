@@ -1,6 +1,7 @@
 import SwiftUI
 import Sparkle
 
+nonisolated(unsafe) var cliExitCode: Int32 = 0   // a CLI mode can set its own exit code (--launch --wait: the program's, or 124)
 let updater = SPUStandardUpdaterController(startingUpdater: !isTestBuild, updaterDelegate: nil, userDriverDelegate: nil)
 
 @main struct CosmopolitanApp: App {
@@ -8,7 +9,7 @@ let updater = SPUStandardUpdaterController(startingUpdater: !isTestBuild, update
     init() {
         enterTestModeIfNeeded()   // first, before any path is computed
         let a = CommandLine.arguments
-        let modes = ["--settings", "--setup", "--session-end", "--troubleshoot", "--repair", "--input", "--find", "--status", "--check", "--update", "--launch", "--tune", "--tunesteam", "--newbottle", "--accept-d3dmetal", "--snapshot", "--rollback", "--importables", "--import", "--willitrun", "--bugreport", "--hints", "--offline", "--compress", "--shaders", "--volumes", "--offlineexe", "--uslayout", "--hudocr", "--saves", "--mods", "--addmod", "--mod", "--rumble", "--padmode", "--procs", "--clean-driver-copies", "--sweep-registry", "--tree-hash", "--install-d3dmetal", "--print-env", "--install-runtime"]   // --launch <bottle> <exe> [seconds]   // --check <bottle> <exe>: dry-run of the launch check
+        let modes = ["--settings", "--setup", "--session-end", "--troubleshoot", "--repair", "--input", "--find", "--status", "--check", "--update", "--launch", "--tune", "--tunesteam", "--newbottle", "--accept-d3dmetal", "--snapshot", "--rollback", "--importables", "--import", "--willitrun", "--bugreport", "--hints", "--offline", "--compress", "--shaders", "--volumes", "--offlineexe", "--uslayout", "--hudocr", "--saves", "--mods", "--addmod", "--mod", "--rumble", "--padmode", "--procs", "--clean-driver-copies", "--sweep-registry", "--tree-hash", "--install-d3dmetal", "--print-env", "--install-runtime"]   // --launch <bottle> <exe> [seconds] | --wait [max seconds]   // --check <bottle> <exe>: dry-run of the launch check
         guard let i = a.firstIndex(where: { modes.contains($0) }) else { return }
         cliMode = true
         let m = Model()
@@ -58,17 +59,25 @@ let updater = SPUStandardUpdaterController(startingUpdater: !isTestBuild, update
         case "--importables": m.log += m.importableBottles().map { "\($0.label)\t\($0.path)" }.joined(separator: "\n") + "\n"
         case "--import": if i + 3 < a.count { m.importBottle(a[i + 2], as: a[i + 3]); RunLoop.main.run(until: Date().addingTimeInterval(60)) }
         case "--tune": if i + 2 < a.count { m.log += m.tuneUnreal(a[i + 2]) ?? "nothing to tune (no settings file yet, or already tuned)\n" }
-        case "--launch": if i + 2 < a.count {   // --launch <bottle> <exe> [max seconds, default 120]: returns when the program exits
-            let exe = a[i + 2], limit = Double(a.count > i + 3 ? a[i + 3] : "120") ?? 120, t0 = Date(), name = (exe as NSString).lastPathComponent
-            m.launch(exe)
-            while m.launchExits[exe] == nil, !m.log.contains("\(name) is already running."), Date().timeIntervalSince(t0) < limit { RunLoop.main.run(until: Date().addingTimeInterval(0.5)) }
-            let took = String(format: "%.1f", Date().timeIntervalSince(t0))
-            m.log += m.launchExits[exe].map { "launch: \(name) exited with code \($0) after \(took) s\n" } ?? "launch: \(name) still running after \(took) s (limit \(Int(limit)) s)\n"
+        case "--launch": if i + 2 < a.count {
+            let exe = a[i + 2], name = (exe as NSString).lastPathComponent
+            if let w = a.firstIndex(of: "--wait") {   // --launch <bottle> <exe> --wait [max seconds, default 120]: until the program exits
+                let limit = Double(a.count > w + 1 ? a[w + 1] : "120") ?? 120, t0 = Date()
+                m.launchOutputToLog = true
+                m.launch(exe)
+                while m.launchExits[exe] == nil, !m.log.contains("\(name) is already running."), Date().timeIntervalSince(t0) < limit { RunLoop.main.run(until: Date().addingTimeInterval(0.5)) }
+                let took = String(format: "%.1f", Date().timeIntervalSince(t0))
+                if let code = m.launchExits[exe] { m.log += "launch: \(name) exited with code \(code) after \(took) s\n"; cliExitCode = code }
+                else if m.log.contains("\(name) is already running.") { m.log += "launch: \(name) was already running; not started again\n"; cliExitCode = 124 }
+                else { m.log += "launch: \(name) still running after \(took) s (limit \(Int(limit)) s); left running\n"; cliExitCode = 124 }
+            } else {   // the old behaviour: run for a fixed time (default 30 s), then end with the CLI
+                m.launch(exe); RunLoop.main.run(until: Date().addingTimeInterval(Double(a.count > i + 3 ? a[i + 3] : "30") ?? 30))
+            }
         }
         case "--check": if i + 2 < a.count { let n = m.launchNeeds(a[i + 2]); m.log += n.note + "drivers override: \(n.drivers ?? ["(bottle setting)"]) verbs: \(n.verbs) overrides: \(n.overrides) env: \(n.env) args: \(n.args) desktop: \(n.desktop) light: \(n.status == .green ? "green" : n.status == .yellow ? "yellow" : "red")\n" }
         case "--status": m.log += "d3dmetal: " + (m.d3dmetalNow.map { "\($0.pretty) from \($0.source); features: " + $0.features.sorted().joined(separator: " ") + (d3dmetalOK ? "; license accepted" : "; license not accepted") } ?? "not installed") + "\n"; m.log += "drivers: \(m.driverStatus.0 == .green ? "green" : m.driverStatus.0 == .yellow ? "yellow" : "red") (\(m.driverStatus.1))\ncontroller: \(m.padStatus.0 == .green ? "green" : m.padStatus.0 == .yellow ? "yellow" : "red") (\(m.padStatus.1))\n"
         default: m.troubleshoot() }
-        print(m.log); exit(0)
+        print(m.log); exit(cliExitCode)
     }
     var body: some Scene {
         WindowGroup("Cosmopolitan") { ContentView().handlesExternalEvents(preferring: ["launch"], allowing: ["*"]) }   // cosmopolitan://launch?name=<program> goes to the existing window, not a new one (§7.7 via Shortcuts/Siri)

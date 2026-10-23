@@ -12,6 +12,10 @@ extension Model {
         if let exe, FileManager.default.fileExists(atPath: exe) { p.currentDirectoryURL = URL(fileURLWithPath: (exe as NSString).deletingLastPathComponent) }   // like Explorer: a program starts in its own folder
 
         let pipe = Pipe(); p.standardOutput = pipe; p.standardError = pipe
+        // CLI --wait: a pipe's reader dies with the CLI and the program's later output is lost (Wine ignores SIGPIPE, so the program
+        // itself keeps running); the log file outlives the CLI and keeps that output.
+        let logFD = launchOutputToLog && exe != nil ? open(logPath, O_WRONLY | O_APPEND | O_CREAT, 0o644) : -1   // O_APPEND: the app appends to it too
+        if logFD >= 0 { let fh = FileHandle(fileDescriptor: logFD, closeOnDealloc: true); p.standardOutput = fh; p.standardError = fh }
         pipe.fileHandleForReading.readabilityHandler = { h in
             let s = String(decoding: h.availableData, as: UTF8.self)
             if !s.isEmpty { logToFile(s); Task { @MainActor in self.log += s } }

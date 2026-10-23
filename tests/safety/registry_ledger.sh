@@ -32,7 +32,7 @@ print "ok: stale win98 keys swept; the .NET test went from '$before' to '$after'
 # 2. A setting turned off is removed at the next launch (MOUSE_CAPTURE option).
 print 'MOUSE_CAPTURE=1' > "$(tprefix L)/options/stress-d3d11-64.exe.env"; tlaunch L "$D11" || fail "stress-d3d11-64 did not exit within 120 s"
 [[ "$(rq "$AD\\stress-d3d11-64.exe\\DirectInput" MouseWarpOverride)" == force ]] || fail "MOUSE_CAPTURE did not write its key"
-rm "$(tprefix L)/options/stress-d3d11-64.exe.env"; out=$(ct --launch L "$D11" 120 2>&1)
+rm "$(tprefix L)/options/stress-d3d11-64.exe.env"; out=$(ct --launch L "$D11" --wait 120 2>&1)
 [[ "$(rq "$AD\\stress-d3d11-64.exe\\DirectInput" MouseWarpOverride)" == "<none>" ]] || fail "turned-off MOUSE_CAPTURE left its key"
 print -r -- "ok: turning MOUSE_CAPTURE off removed its key ($(print -r -- "$out" | grep -o "Removed registry settings.*" | head -1))"
 

@@ -41,11 +41,12 @@ tprefix() { print -r -- "$TS/bottles/$1"; }
 poll() { local max=$1 t0=$EPOCHREALTIME; shift
   while ! "$@" >/dev/null 2>&1; do (( EPOCHREALTIME - t0 > max )) && { POLL_TOOK=$(printf '%.1f' $(( EPOCHREALTIME - t0 ))); return 1; }; sleep 0.5; done
   POLL_TOOK=$(printf '%.1f' $(( EPOCHREALTIME - t0 ))); }
-# tlaunch BOTTLE EXE [MAX]: launches through the test build and returns when the program exits (the app polls every 0.5 s, up to MAX,
-# default 120 s). LAUNCH_CODE = exit code (empty if it was still running), LAUNCH_TOOK = seconds, LAUNCH_LINE = the app's own line.
-tlaunch() { LAUNCH_LINE=$(ct --launch "$1" "$2" "${3:-120}" 2>&1 | grep '^launch: ' | tail -1)
-  LAUNCH_CODE=$(print -r -- "$LAUNCH_LINE" | sed -n 's/.*exited with code \(-*[0-9]*\).*/\1/p'); LAUNCH_TOOK=$(print -r -- "$LAUNCH_LINE" | grep -o '[0-9.]* s' | head -1)
-  [[ -n "$LAUNCH_CODE" ]]; }
+# tlaunch BOTTLE EXE [MAX]: launches through the test build with --wait (it polls every 0.5 s, up to MAX, default 120 s) and returns its
+# exit status: the program's own exit code, or 124 if it was still running at MAX. LAUNCH_CODE = that status, LAUNCH_TOOK = seconds,
+# LAUNCH_LINE = the app's own line.
+tlaunch() { local out; out=$(ct --launch "$1" "$2" --wait "${3:-120}" 2>&1); LAUNCH_CODE=$?
+  LAUNCH_LINE=$(print -r -- "$out" | grep '^launch: ' | tail -1); LAUNCH_TOOK=$(print -r -- "$LAUNCH_LINE" | sed -n 's/.* after \([0-9.]*\) s.*/\1 s/p')
+  return $LAUNCH_CODE; }
 twine() {   # twine BOTTLE ARGS… — Wine in a throwaway prefix, msync like the app
   local b="$1"; shift
   sandbox-exec -p "$(tw_sandbox_profile)" env CFFIXED_USER_HOME="$TH" HOME="$TH" WINEPREFIX="$(tprefix "$b")" WINEMSYNC=1 WINEDEBUG=-all "$TS/engines/$ENGINE/wswine.bundle/bin/wine" "$@"
