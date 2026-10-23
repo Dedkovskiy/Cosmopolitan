@@ -91,7 +91,7 @@ _tw_keylist() { awk -F'\t' '$2 != f { if (f != "") print "  " f ": " ks; f = $2;
 tw_snapshot() {
   TW_STATE="$(_tw_state)"; TW_REGKEYS="$(_tw_regkeys)"; TW_MARKERS="$(_tw_markers)"
   TW_LOG_SIZE=$( [[ -f "$REAL_LOG" ]] && stat -f %z "$REAL_LOG" || print 0 )
-  TW_LOG_HEAD=$( [[ -f "$REAL_LOG" ]] && head -c "$TW_LOG_SIZE" "$REAL_LOG" | shasum -a 256 | cut -c1-16 )
+  TW_LOG_HEAD=$( [[ -f "$REAL_LOG" ]] && head -c "$TW_LOG_SIZE" "$REAL_LOG" 2>/dev/null | shasum -a 256 | cut -c1-16 )
 }
 # tw_check: fails on any change to your data, with two lenient rules, each printed as a note naming the files (and keys):
 #   cache markers changed while your Cosmopolitan app runs; registry keys changed while your Steam runs (the test is sandboxed, so it
@@ -109,7 +109,7 @@ tw_check() {
   local ok=1 now="$(_tw_state)" keys="$(_tw_regkeys)"
   [[ "$now" == "$TW_STATE" ]] || { ok=0; print "TRIPWIRE: real data changed:"; diff <(print -r -- "$TW_STATE") <(print -r -- "$now") | sed 's/^/  /'; }
   if [[ -f "$REAL_LOG" ]]; then
-    local size=$(stat -f %z "$REAL_LOG") head=$(head -c "$TW_LOG_SIZE" "$REAL_LOG" | shasum -a 256 | cut -c1-16)
+    local size=$(stat -f %z "$REAL_LOG") head=$(head -c "$TW_LOG_SIZE" "$REAL_LOG" 2>/dev/null | shasum -a 256 | cut -c1-16)
     (( size >= TW_LOG_SIZE )) && [[ "$head" == "$TW_LOG_HEAD" ]] || { ok=0; print "TRIPWIRE: your Cosmopolitan.log was truncated or rewritten"; }
   fi
   local markers="$(_tw_markers)"

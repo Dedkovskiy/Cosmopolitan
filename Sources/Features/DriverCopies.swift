@@ -5,15 +5,40 @@ import Foundation
 
 // Wine updates a prefix by itself when <prefix>/.update-timestamp differs from wine.inf's mtime, inside whatever launch hit it. Doing it
 // first, without driver slots, keeps that update from copying driver DLLs into the prefix.
+nonisolated(unsafe) private var updateTimedOut: Set<String> = []   // prefixes whose update ran out of time in this run
+private let updateLock = NSLock()
 func updatePrefixIfStale(_ prefix: String) {
-    let stamp = (try? String(contentsOfFile: prefix + "/.update-timestamp", encoding: .utf8))?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    let file = prefix + "/.update-timestamp", raw = try? String(contentsOfFile: file, encoding: .utf8)
+    let stamp = raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     let inf = (wineBin as NSString).deletingLastPathComponent + "/../share/wine/wine.inf"
     guard FileManager.default.fileExists(atPath: prefix + "/drive_c"), stamp != "disable",
           let m = (try? FileManager.default.attributesOfItem(atPath: inf))?[.modificationDate] as? Date, stamp != String(Int(m.timeIntervalSince1970)) else { return }
+    // Every Wine command builds a launch environment, so after a timeout this would start (and wait for) another update at once; once per run.
+    updateLock.lock(); let tried = updateTimedOut.contains(prefix); updateLock.unlock()
+    if tried { return }
     // Mono and Gecko stay out of the update, as in createBottle: Cosmopolitan installs and checks Wine Mono itself, and a newer engine's
     // wineboot otherwise wants its own newer Wine Mono and waits on that download (Wine 11 with Mono 9.4.0 in the bottle: for good).
-    // At most 5 minutes either way, then the launch goes ahead; the server isn't killed (Steam may be running in this bottle).
-    _ = shell("perl -e 'alarm 300; exec @ARGV' -- env WINEDLLOVERRIDES='mscoree,mshtml=' \(plainWine(prefix)) wineboot -u >/dev/null 2>&1")
+    let limit = (isTestBuild ? Int(ProcessInfo.processInfo.environment["COSMO_TEST_UPDATE_TIMEOUT"] ?? "") : nil) ?? 300
+    let r = shell("perl -e 'alarm \(limit); exec @ARGV' -- env WINEDLLOVERRIDES='mscoree,mshtml=' \(plainWine(prefix)) wineboot -u >/dev/null 2>&1; echo rc=$?")
+    guard r.contains("rc=142") else { return }   // SIGALRM: wineboot was stopped before the update finished
+    updateLock.lock(); updateTimedOut.insert(prefix); updateLock.unlock()   // tried again at the next start, not by the next command
+    // Wine writes the new stamp when the update starts: the old one goes back, so the next start tries again.
+    if let raw { try? raw.write(toFile: file, atomically: true, encoding: .utf8) } else { try? FileManager.default.removeItem(atPath: file) }
+    // Stopping only the update's wineboot/rundll32 would leave this session's boot unfinished, and Wine makes every new program in the
+    // session wait for it (tested: not even `cmd /c echo` started). So: nothing but Wine's own services in this prefix → its leftovers and
+    // its wineserver go (nothing of yours lost; the launch gets a clean session). Anything else running there (Steam, a game) → nothing is
+    // touched and the update may still finish.
+    let dir = realPath(prefix), own = ["services.exe", "winedevice.exe", "plugplay.exe", "svchost.exe", "rpcss.exe", "explorer.exe",
+                                       "conhost.exe", "start.exe", "rundll32.exe", "wineboot.exe"]
+    let ownPids = Set(own.flatMap { procFind($0, under: dir) }), others = procFind(".exe", under: dir).filter { !ownPids.contains($0) }
+    let name = (prefix as NSString).lastPathComponent
+    if others.isEmpty {
+        for n in ["rundll32.exe", "wineboot.exe"] { for p in procFind(n, under: dir) { kill(p, SIGKILL) } }
+        _ = shell("env WINEPREFIX='\(prefix)' '\((wineBin as NSString).deletingLastPathComponent)/wineserver' -k 2>/dev/null")
+        logToFile("Updating \(name) for this engine didn't finish in \(limit) s; it was stopped (nothing else was running there) and will be tried again at the next start.\n")
+    } else {
+        logToFile("Updating \(name) for this engine didn't finish in \(limit) s; left running because \(others.count) other program\(others.count == 1 ? "" : "s") run there; it will be tried again at the next start if it doesn't finish.\n")
+    }
 }
 
 extension Model {
