@@ -42,6 +42,8 @@ int main(int argc, char **argv) {
     uint8_t p0[0x45] = {}; p0[0] = 'M'; p0[1] = 'Z'; p0[0x3C] = 0x40; memcpy(p0 + 0x40, "PE\0\0", 4);
     spit(t, p0, sizeof p0); r = cosmo_pe_read(t.c_str(), imps, sizeof imps);
     CHECK(r.error == 2, "69-byte truncated PE: error %d (want 2)", r.error);
+    { const auto d = slurp(argv[1]); spit(t, d.data(), 2000); r = cosmo_pe_read(t.c_str(), imps, sizeof imps);   // headers intact, sections cut off
+      CHECK(d.size() < 8192 || r.error == 2, "cut to 2000 of %zu bytes (inside its sections): error %d (want 2)", d.size(), r.error); }
 
     // 3. Every truncation: byte by byte through the first 4 KB, then every 4 KB
     size_t runs = 0;

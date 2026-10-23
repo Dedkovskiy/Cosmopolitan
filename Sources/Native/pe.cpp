@@ -46,6 +46,10 @@ void pe_read(const char *path, cosmo_pe_info &r, std::string &list) {
         auto le = [&](int o) { return uint32_t(b[o]) | uint32_t(b[o + 1]) << 8 | uint32_t(b[o + 2]) << 16 | uint32_t(b[o + 3]) << 24; };
         secs.push_back({ le(12), le(8), le(16), le(20) });
     }
+    // Cut inside its sections = truncated, not "a program without imports": a section table that ends early, or raw data ending more
+    // than a page past the end of the file (one page of slack: some linkers round the last section's size up past the end).
+    if (secs.size() < std::min<uint32_t>(nsec, 96)) { r.error = 2; return; }
+    for (const auto &s : secs) if (s.rawsize && uint64_t(s.rawptr) + s.rawsize > f.size() + 4096) { r.error = 2; return; }
     auto off = [&](uint32_t rva, uint64_t &o) {   // RVA → file offset, only inside a section and inside the file
         for (const auto &s : secs) {
             const uint32_t sz = std::max(s.vsize, s.rawsize);
