@@ -25,7 +25,7 @@ extension ContentView {
             Label("Steam is never restarted while it downloads or a game runs: it waits, or asks you.", systemImage: "clock")
             Label("Signing in to GOG happens in a window inside the app.", systemImage: "person.crop.circle.badge.checkmark")
             Label("Everything you used before is still there: Settings › Show advanced options.", systemImage: "slider.horizontal.3")
-            HStack { Spacer(); Button("Continue") { whatsNewSeen = "2.0"; showWhatsNew = false }.keyboardShortcut(.defaultAction) }
-        }.padding(28).frame(width: 580)
+            HStack { Spacer(); Button("Continue") { whatsNewSeen = "2.0"; showWhatsNew = false }.keyboardShortcut(.defaultAction).controlSize(.large).primaryButton() }
+        }.labelStyle(AccentIcon()).padding(28).frame(width: 580)
     }
 }

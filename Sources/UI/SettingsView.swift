@@ -67,7 +67,7 @@ struct SettingsView: View {
                 Section("Helper tools (Homebrew)") {
                     ForEach(tools, id: \.name) { t in
                         HStack {
-                            Image(systemName: t.path != nil ? "checkmark.circle.fill" : "circle").foregroundStyle(t.path != nil ? .green : .secondary)
+                            Image(systemName: t.path != nil ? "checkmark.circle.fill" : "circle").foregroundStyle(t.path != nil ? Theme.accent : .secondary)
                             VStack(alignment: .leading) { Text(t.name); Text(t.why).font(.caption).foregroundStyle(.secondary) }
                             Spacer()
                             if t.path == nil {
@@ -81,7 +81,7 @@ struct SettingsView: View {
                     }
                 }
             }
-        }.formStyle(.grouped).frame(width: 520, height: 600)
+        }.formStyle(.grouped).scrollContentBackground(.hidden).frame(width: 520, height: 600).frost()
     }
 
     func install(_ name: String, _ formula: String) {

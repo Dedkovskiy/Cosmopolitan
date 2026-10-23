@@ -54,7 +54,7 @@ struct OnboardingView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            HStack(spacing: 6) { ForEach(shown, id: \.self) { i in Capsule().fill(i <= step ? Color.accentColor : Color.secondary.opacity(0.25)).frame(width: 22, height: 5) } }
+            HStack(spacing: 6) { ForEach(shown, id: \.self) { i in Capsule().fill(i <= step ? Theme.accent : Color.white.opacity(0.15)).frame(width: 26, height: 5) } }
             Group {
                 switch step {
                 case 0: welcome
@@ -72,7 +72,7 @@ struct OnboardingView: View {
                 Spacer()
                 if step > 0 && step < 6 { Button("Skip") { next() } }
                 primary
-            }
+            }.controlSize(.large).secondaryButton()
         }.padding(32).frame(width: 640, height: 500)
         .interactiveDismissDisabled()
         .onAppear { facts = MacFacts.check(m); gptk = Model.mountedGPTK(); if step > 0 { prepare() } }
@@ -103,9 +103,9 @@ struct OnboardingView: View {
 
     @ViewBuilder var primary: some View {
         switch step {
-        case 0: Button("Get started") { acceptTerms(); next() }.keyboardShortcut(.defaultAction).controlSize(.large)
-        case 6: Button("Open my Library") { startChosenStores(); finish() }.keyboardShortcut(.defaultAction).controlSize(.large)
-        default: Button("Continue") { next() }.keyboardShortcut(.defaultAction)
+        case 0: Button("Get started") { acceptTerms(); next() }.keyboardShortcut(.defaultAction).controlSize(.large).primaryButton()
+        case 6: Button("Open my Library") { startChosenStores(); finish() }.keyboardShortcut(.defaultAction).controlSize(.large).primaryButton()
+        default: Button("Continue") { next() }.keyboardShortcut(.defaultAction).controlSize(.large).primaryButton()
         }
     }
 
@@ -116,7 +116,7 @@ struct OnboardingView: View {
             HStack { ProgressView(value: m.setupProgress).frame(width: 140); Text("Getting things ready…" + minutesLeft).foregroundStyle(.secondary) }
         } else if m.setupStep.hasPrefix("✗") {
             HStack { Label("Setup didn't finish.", systemImage: "exclamationmark.triangle").foregroundStyle(.orange); Button("Try again") { prepare() } }
-        } else if !m.setupNeeded { Label("Everything is ready.", systemImage: "checkmark.circle").foregroundStyle(.green) }
+        } else if !m.setupNeeded { Label("Everything is ready.", systemImage: "checkmark.circle").foregroundStyle(Theme.accent) }
     }
     var minutesLeft: String {
         guard let s = started, m.setupProgress > 0.05 else { return "" }
@@ -130,48 +130,48 @@ struct OnboardingView: View {
             Text("Play your Windows games on this Mac.").font(.system(size: 30, weight: .bold))
             Text("Cosmopolitan sets everything up for each game and keeps it working.").font(.title3).foregroundStyle(.secondary)
             Spacer()
-            HStack(spacing: 4) { Text("By continuing you agree to the").font(.caption).foregroundStyle(.secondary); Button("terms of use") { showTerms() }.buttonStyle(.link).font(.caption) }
+            HStack(spacing: 4) { Text("By continuing you agree to the").font(.caption).foregroundStyle(.secondary); Button("terms of use") { showTerms() }.buttonStyle(.link).foregroundStyle(Theme.accent).font(.caption) }
         }
     }
 
     var thisMac: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(facts.limited ?? "This Mac plays Windows games well.").font(.title2)
+            Text(facts.limited ?? "This Mac plays Windows games well.").font(.title2.bold())
             Text("\(facts.chip) · \(facts.ramGB) GB memory · macOS \(facts.macOS) · \(facts.freeGB) GB free").foregroundStyle(.secondary)
         }
     }
 
     var rosetta: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Windows games are made for a different kind of chip. Apple's free Rosetta translates them.").font(.title3)
-            if facts.rosetta { Label("Rosetta is installed.", systemImage: "checkmark.circle.fill").foregroundStyle(.green) }
+            Text("Windows games are made for a different kind of chip. Apple's free Rosetta translates them.").font(.title2.bold())
+            if facts.rosetta { Label("Rosetta is installed.", systemImage: "checkmark.circle.fill").foregroundStyle(Theme.accent) }
             else {
                 Text("Installing Rosetta means agreeing to Apple's software licence for it.")
-                Button("Read Apple's licence") { NSWorkspace.shared.open(URL(string: "https://www.apple.com/legal/sla/")!) }.buttonStyle(.link)
+                Button("Read Apple's licence") { NSWorkspace.shared.open(URL(string: "https://www.apple.com/legal/sla/")!) }.buttonStyle(.link).foregroundStyle(Theme.accent)
                 Button(rosettaBusy ? "Installing Rosetta…" : "Agree and Install") {
                     rosettaBusy = true   // macOS asks for an administrator password; nothing happens before this click
                     Task.detached {
                         _ = shell("osascript -e 'do shell script \"/usr/sbin/softwareupdate --install-rosetta --agree-to-license\" with administrator privileges'")
                         await MainActor.run { rosettaBusy = false; facts = MacFacts.check(m) }
                     }
-                }.buttonStyle(.borderedProminent).disabled(rosettaBusy || !m.online)
+                }.primaryButton().disabled(rosettaBusy || !m.online)
             }
         }
     }
 
     var toolkit: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Newer games need Apple's free Game Porting Toolkit.").font(.title3)
+            Text("Newer games need Apple's free Game Porting Toolkit.").font(.title2.bold())
             if m.d3dmetalNow != nil, d3dmetalOK {
-                Label("Apple's Game Porting Toolkit is ready (version \(m.d3dmetalNow!.pretty)).", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+                Label("Apple's Game Porting Toolkit is ready (version \(m.d3dmetalNow!.pretty)).", systemImage: "checkmark.circle.fill").foregroundStyle(Theme.accent)
             } else if m.d3dmetalNow != nil, let lic = d3dmetalLicenseFile() {
                 Text("Read Apple's licence from your download, then accept it.")
                 LicenseView(path: lic).frame(height: 180).border(.secondary.opacity(0.4))
                 Toggle("I have read Apple's licence for the Game Porting Toolkit", isOn: $licRead)
                 Button("I accept Apple's licence") { m.acceptD3DMetal() }.disabled(!licRead)
             } else if let g = gptk {
-                Label("Found it ✓  (\((g as NSString).lastPathComponent))", systemImage: "externaldrive.fill").foregroundStyle(.green)
-                Button("Use it") { m.installD3DMetal(from: g) }.buttonStyle(.borderedProminent)
+                Label("Found it ✓  (\((g as NSString).lastPathComponent))", systemImage: "externaldrive.fill").foregroundStyle(Theme.accent)
+                Button("Use it") { m.installD3DMetal(from: g) }.primaryButton()
                 Text("Cosmopolitan copies it from your own download; it never downloads it for you.").font(.caption).foregroundStyle(.secondary)
             } else {
                 Text("1. Open Apple's page.  2. Sign in with your Apple Account and download it.  3. Open the downloaded file.")
@@ -184,8 +184,8 @@ struct OnboardingView: View {
     @AppStorage("onboardingStores") var chosen = ""   // stores to open or sign in to once the Library opens (a sheet can't open another sheet)
     var games: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Where are your games?").font(.title3)
-            ForEach(facts.found, id: \.store) { f in Label("We found \(f.store) with \(f.games) game\(f.games == 1 ? "" : "s"). They're in your Library.", systemImage: "checkmark.circle.fill").foregroundStyle(.green) }
+            Text("Where are your games?").font(.title2.bold())
+            ForEach(facts.found, id: \.store) { f in Label("We found \(f.store) with \(f.games) game\(f.games == 1 ? "" : "s"). They're in your Library.", systemImage: "checkmark.circle.fill").foregroundStyle(Theme.accent) }
             HStack {
                 ForEach(["Steam", "GOG", "Epic Games", "Battle.net"], id: \.self) { s in
                     Toggle(s, isOn: Binding(get: { chosen.split(separator: ",").contains(Substring(s)) }, set: { on in
@@ -202,9 +202,9 @@ struct OnboardingView: View {
 
     var controller: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Press any button on your controller.").font(.title3)
+            Text("Press any button on your controller.").font(.title2.bold())
             Label(pressed ? "Got it ✓" : nativeControllers().first.map { "\($0) is connected. Waiting for a button…" } ?? "No controller found yet. Turn it on, or pair it in System Settings › Bluetooth.",
-                  systemImage: pressed ? "checkmark.circle.fill" : "gamecontroller").foregroundStyle(pressed ? .green : .primary)
+                  systemImage: pressed ? "checkmark.circle.fill" : "gamecontroller").foregroundStyle(pressed ? Theme.accent : .primary)
             Button("Test rumble (optional)") { m.testRumble() }
         }.onAppear {
             for c in GCController.controllers() { c.extendedGamepad?.valueChangedHandler = { _, _ in Task { @MainActor in pressed = true } } }
@@ -218,7 +218,7 @@ struct OnboardingView: View {
                 Label("Almost there.", systemImage: "hourglass").font(.system(size: 28, weight: .bold))
                 Text("Your Library opens next. Games can start once setup has finished; the line below shows how it's going.").font(.title3)
             } else {
-                Label("You're all set.", systemImage: "checkmark.seal.fill").font(.system(size: 28, weight: .bold)).foregroundStyle(.green)
+                Label("You're all set.", systemImage: "checkmark.seal.fill").font(.system(size: 28, weight: .bold)).foregroundStyle(Theme.accent)
                 Text("Your Library opens next. Add a game with “Add game”; each game says whether it's ready to play.").font(.title3)
             }
             Spacer()

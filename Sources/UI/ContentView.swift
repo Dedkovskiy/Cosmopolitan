@@ -34,21 +34,21 @@ struct ContentView: View {
     var body: some View {
         Group { if advancedMode { advancedView } else { libraryView } }   // item 39: the Library; Advanced is the previous window
         .frame(minWidth: 760, minHeight: 600)
-        .sheet(isPresented: $showOnboarding) { OnboardingView(m: m, loginStore: $loginStore) { onboardingDone = true; showOnboarding = false } }
-        .sheet(isPresented: $showWhatsNew) { whatsNewSheet }
+        .sheet(isPresented: $showOnboarding) { OnboardingView(m: m, loginStore: $loginStore) { onboardingDone = true; showOnboarding = false }.frost() }
+        .sheet(isPresented: $showWhatsNew) { whatsNewSheet.frost() }
         .onChange(of: m.askD3DMetal) { _, v in if v { showD3DM = true; m.askD3DMetal = false } }
         .onAppear(perform: firstStart)
         .onChange(of: onboardingDone) { _, done in if !done { showOnboarding = true } }   // Settings › Run setup again
-        .sheet(isPresented: $showWIR) { willItRunSheet }
-        .sheet(isPresented: Binding(get: { modExe != nil }, set: { if !$0 { modExe = nil } })) { modsSheet }
-        .sheet(isPresented: $showSnaps) { snapshotsSheet }
-        .sheet(isPresented: $showImport) { importBottlesSheet }
-        .sheet(isPresented: $showTerms) { termsSheet }
-        .sheet(isPresented: Binding(get: { m.showSetup && !showTerms }, set: { m.showSetup = $0 })) { setupSheet }
-        .sheet(isPresented: $showD3DM) { d3dmetalSheet }
-        .sheet(isPresented: Binding(get: { loginStore != nil }, set: { if !$0 { loginStore = nil } })) { storeLoginSheet }
+        .sheet(isPresented: $showWIR) { willItRunSheet.frost() }
+        .sheet(isPresented: Binding(get: { modExe != nil }, set: { if !$0 { modExe = nil } })) { modsSheet.frost() }
+        .sheet(isPresented: $showSnaps) { snapshotsSheet.frost() }
+        .sheet(isPresented: $showImport) { importBottlesSheet.frost() }
+        .sheet(isPresented: $showTerms) { termsSheet.frost() }
+        .sheet(isPresented: Binding(get: { m.showSetup && !showTerms }, set: { m.showSetup = $0 })) { setupSheet.frost() }
+        .sheet(isPresented: $showD3DM) { d3dmetalSheet.frost() }
+        .sheet(isPresented: Binding(get: { loginStore != nil }, set: { if !$0 { loginStore = nil } })) { storeLoginSheet.frost() }
         .onAppear { if isTestBuild, ProcessInfo.processInfo.environment["COSMO_TEST_SHEET"] == "gog-login" { loginStore = "gog" } }   // screenshots of the sheet
-        .sheet(isPresented: Binding(get: { optExe != nil }, set: { if !$0 { optExe = nil } })) { optionsSheet }
+        .sheet(isPresented: Binding(get: { optExe != nil }, set: { if !$0 { optExe = nil } })) { optionsSheet.frost() }
         .confirmationDialog("Delete bottle \"\(m.selected)\" and everything in it?", isPresented: $confirmDelete) {
             Button("Delete", role: .destructive) { m.deleteBottle() }
         }
@@ -65,14 +65,16 @@ struct ContentView: View {
             ps.first?.loadItem(forTypeIdentifier: "public.file-url") { d, _ in
                 if let d = d as? Data, let u = URL(dataRepresentation: d, relativeTo: nil) { Task { @MainActor in m.install(u) } } }
             return true }
+        .frost()
     }
     @ViewBuilder var advancedView: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack { Button { advancedMode = false } label: { Label("Library", systemImage: "chevron.left") }; Text("Advanced").font(.headline); Spacer() }.padding([.horizontal, .top])
+            HStack(spacing: 12) { Button { advancedMode = false } label: { Label("Library", systemImage: "chevron.left") }.secondaryButton(); Text("Advanced").font(.system(size: 22, weight: .bold)); Spacer() }.padding(.horizontal, 20).padding(.top, 4)
             HSplitView {
                 VStack(alignment: .leading) {
                     Text("Bottles").font(.headline)
                     List(m.bottles, id: \.self, selection: Binding(get: { m.selected }, set: { m.selected = $0; m.scan() })) { Text($0).tag($0) }
+                        .scrollContentBackground(.hidden).background(.black.opacity(0.25), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                     HStack {
                         TextField("new bottle", text: $newName)
                         Button("Create") { m.createBottle(newName); newName = "" }.disabled(newName.isEmpty || m.busy)
@@ -130,7 +132,7 @@ struct ContentView: View {
                     }
                     Text("Chosen from what is installed: dxmt for Direct3D 10/11 bottles, d3dmetal as soon as a Direct3D 12 game is present (Steam is restarted automatically).")
                         .font(.caption).foregroundStyle(.secondary)
-                }.frame(minWidth: 200, maxWidth: 340).padding()
+                }.padding(14).frame(minWidth: 220, maxWidth: 360, maxHeight: .infinity, alignment: .topLeading).glassCard().padding(10)
                 VStack(alignment: .leading) {
                     HStack {
                         Text("Programs in \(m.selected)").font(.headline)
@@ -181,29 +183,34 @@ struct ContentView: View {
                     HStack {
                         Text("Drop an installer anywhere in this window — a bottle is created automatically if needed.").font(.caption).foregroundStyle(.secondary)
                         Spacer()
-                        Button("Will it run?…") { showWIR = true }.controlSize(.small)
-                            .help("Paste a Steam store link: verdict for this Mac from Highball, ProtonDB and the anti-cheat map, before you buy.")
-                        Button("Offline check") { m.offlineCheck() }.controlSize(.small).disabled(m.selected.isEmpty)
-                            .help("Which programs will start without internet, and what to do in Steam before a trip.")
-                        Button("Bug report") { m.copyBugReport() }.controlSize(.small)
+                        // Nine buttons didn't fit beside the hint at the default window size; two menus and one button do.
+                        Menu("Checks") {
+                            Button("Will it run?…") { showWIR = true }
+                                .help("Paste a Steam store link: verdict for this Mac from Highball, ProtonDB and the anti-cheat map, before you buy.")
+                            Button("Offline check") { m.offlineCheck() }.disabled(m.selected.isEmpty)
+                                .help("Which programs will start without internet, and what to do in Steam before a trip.")
+                            Button("Input check") { m.inputCheck() }.disabled(m.selected.isEmpty || m.busy)
+                                .help("Checks controller + keyboard from macOS through Wine, then opens Wine's Game Controllers panel for a live test.")
+                            Button("Test rumble") { m.testRumble() }
+                                .help("Pulses the connected controller's motors from macOS; in games, rumble arrives through SDL. Adaptive triggers are not available under Wine.")
+                        }.fixedSize()
+                        Menu("Repair") {
+                            Button("Troubleshoot") { m.troubleshoot() }
+                            Button("Repair") { m.repair() }.disabled(m.selected.isEmpty || m.busy)
+                                .help("Kills stuck Wine processes and restores the bottle defaults: SDL controllers, 96 DPI, Steam overrides.")
+                            Button("Clean up") { m.runCleanUp() }.disabled(m.busy)
+                                .help("Removes temp files, crash dumps, old logs, used installers and download caches. Keeps one previous version of each driver and engine and the newest 3 snapshots of each bottle. Runs by itself once a day.")
+                            Menu("Shader caches") {
+                                Button("Show sizes") { m.shaderCacheReport() }
+                                Button("Clear all (games recompile on next start)", role: .destructive) { m.clearShaderCaches() }
+                            }.disabled(m.selected.isEmpty)
+                        }.fixedSize()
+                        Button("Bug report") { m.copyBugReport() }
                             .help("Copies a report with log, engine, drivers and Mac details to the clipboard, with your username and home folder removed.")
-                        Button("Test rumble") { m.testRumble() }.controlSize(.small)
-                            .help("Pulses the connected controller's motors from macOS; in games, rumble arrives through SDL. Adaptive triggers are not available under Wine.")
-                        Button("Input check") { m.inputCheck() }.controlSize(.small).disabled(m.selected.isEmpty || m.busy)
-                            .help("Checks controller + keyboard from macOS through Wine, then opens Wine's Game Controllers panel for a live test.")
-                        Menu("Shader caches") {
-                            Button("Show sizes") { m.shaderCacheReport() }
-                            Button("Clear all (games recompile on next start)", role: .destructive) { m.clearShaderCaches() }
-                        }.controlSize(.small).frame(width: 120).disabled(m.selected.isEmpty)
-                        Button("Troubleshoot") { m.troubleshoot() }.controlSize(.small)
-                        Button("Repair") { m.repair() }.controlSize(.small).disabled(m.selected.isEmpty || m.busy)
-                        Button("Clean up") { m.runCleanUp() }.controlSize(.small).disabled(m.busy)
-                            .help("Removes temp files, crash dumps, old logs, used installers and download caches. Keeps one previous version of each driver and engine and the newest 3 snapshots of each bottle. Runs by itself once a day.")
-                            .help("Kills stuck Wine processes and restores the bottle defaults: SDL controllers, 96 DPI, Steam overrides.")
-                    }
+                    }.controlSize(.small)
                     ScrollView { Text(m.log).font(.system(.caption, design: .monospaced)).frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled) }
-                        .frame(height: 160).background(.black.opacity(0.08))
-                }.padding()
+                        .padding(8).frame(height: 160).background(.black.opacity(0.3), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }.padding(14).glassCard().padding(10)
             }
         }
     }

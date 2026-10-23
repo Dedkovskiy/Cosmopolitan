@@ -49,7 +49,7 @@ extension ContentView {
             }
             if !epic, let r = loginResult {   // item 22: GOG's outcome stays on screen: "Signed in" or the reason it failed
                 Label(r.message, systemImage: r.ok ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                    .foregroundStyle(r.ok ? .green : .orange).font(.title3).fixedSize(horizontal: false, vertical: true).frame(width: 720, alignment: .leading)
+                    .foregroundStyle(r.ok ? Theme.accent : .orange).font(.title3).fixedSize(horizontal: false, vertical: true).frame(width: 720, alignment: .leading)
                 if r.ok { Text("Your GOG library loads in the background: Stores… › Install GOG game.").font(.caption).foregroundStyle(.secondary) }
                 else { Button("Try again") { loginResult = nil } }
             } else if loginBusy {
