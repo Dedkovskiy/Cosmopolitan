@@ -9,7 +9,7 @@ let updater = SPUStandardUpdaterController(startingUpdater: !isTestBuild, update
     init() {
         enterTestModeIfNeeded()   // first, before any path is computed
         let a = CommandLine.arguments
-        let modes = ["--settings", "--setup", "--session-end", "--troubleshoot", "--repair", "--input", "--find", "--status", "--check", "--update", "--launch", "--tune", "--tunesteam", "--newbottle", "--accept-d3dmetal", "--snapshot", "--rollback", "--importables", "--import", "--willitrun", "--bugreport", "--hints", "--offline", "--compress", "--shaders", "--volumes", "--offlineexe", "--uslayout", "--hudocr", "--saves", "--mods", "--addmod", "--mod", "--rumble", "--padmode", "--procs", "--clean-driver-copies", "--sweep-registry", "--tree-hash", "--install-d3dmetal", "--print-env", "--install-runtime", "--snapshots", "--pad-connected", "--bisect", "--cleanup", "--gog-signin", "--gog-redirect", "--steam-busy", "--steam-restart", "--highball-report", "--awacy-refresh", "--ludusavi-refresh", "--save-paths", "--backup-saves", "--check-updates", "--bugreport-text"]   // --launch <bottle> <exe> [seconds] | --wait [max seconds]   // --check <bottle> <exe>: dry-run of the launch check
+        let modes = ["--settings", "--setup", "--session-end", "--troubleshoot", "--repair", "--input", "--find", "--status", "--check", "--update", "--launch", "--tune", "--tunesteam", "--newbottle", "--accept-d3dmetal", "--snapshot", "--rollback", "--importables", "--import", "--willitrun", "--bugreport", "--hints", "--offline", "--compress", "--shaders", "--volumes", "--offlineexe", "--uslayout", "--hudocr", "--saves", "--mods", "--addmod", "--mod", "--rumble", "--padmode", "--procs", "--clean-driver-copies", "--sweep-registry", "--tree-hash", "--install-d3dmetal", "--print-env", "--install-runtime", "--snapshots", "--pad-connected", "--bisect", "--cleanup", "--gog-signin", "--gog-redirect", "--steam-busy", "--steam-restart", "--highball-report", "--awacy-refresh", "--ludusavi-refresh", "--save-paths", "--backup-saves", "--check-updates", "--bugreport-text", "--health", "--health-fix"]   // --launch <bottle> <exe> [seconds] | --wait [max seconds]   // --check <bottle> <exe>: dry-run of the launch check
         guard let i = a.firstIndex(where: { modes.contains($0) }) else { return }
         cliMode = true
         let m = Model()
@@ -81,6 +81,12 @@ let updater = SPUStandardUpdaterController(startingUpdater: !isTestBuild, update
         case "--check-updates": m.backupBeforeUpdates()   // what the minute timer does
         case "--pad-connected": m.controllerConnected("test pad")   // what a GCControllerDidConnect notification does
         case "--bugreport-text": m.log += m.bugReportText(for: i + 2 < a.count ? (m.programs.first { realPath($0) == realPath(a[i + 2]) } ?? a[i + 2]) : nil)   // the clipboard untouched
+        case "--health", "--health-fix":   // the start-up health check; --health-fix also applies the fixes (a graphics component only with a yes)
+            var progs: [String: Set<String>] = [:]
+            for b in m.bottles where FileManager.default.fileExists(atPath: "\(bottlesDir)/\(b)/drive_c") { progs[b] = Set(m.programsIn(b).map { ($0 as NSString).lastPathComponent.lowercased() }) }
+            m.healthProblems = Model.healthCheck(progs)
+            if a[i] == "--health-fix" { m.fixHealth(); RunLoop.main.run(until: Date().addingTimeInterval(90)); m.healthProblems = Model.healthCheck(progs) }
+            m.log += m.healthProblems.isEmpty ? "health: no problems\n" : m.healthProblems.map { "health: \($0.kind) \($0.target): \($0.text)\n" }.joined()
         case "--snapshots": for s in m.snapshots() { m.log += "snapshot \(s.when)  \(s.reason)\n" }; m.log += "disk held only by snapshots: \(Model.snapshotDiskUse(m.selected)) bytes\n"
         case "--bisect": if i + 2 < a.count { m.bisect(m.programs.first { realPath($0) == realPath(a[i + 2]) } ?? a[i + 2]); RunLoop.main.run(until: Date().addingTimeInterval(3)) }
         case "--importables": m.log += m.importableBottles().map { "\($0.label)\t\($0.path)" }.joined(separator: "\n") + "\n"

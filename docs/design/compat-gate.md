@@ -465,6 +465,8 @@ Each item has its own commit and test (`tests/safety/<name>.sh`, all in `tests/r
 
 **34 Crash capture.** Every program that exits with an error leaves `support/crash-reports/<game> <stamp>.txt`: the last 80 log lines, the drivers it ran with, and the app, engine, D3DMetal, driver and macOS versions; newest 20 kept. The bug report attaches the newest (for the game it is about), with the username and home folder removed.
 
+**35 Health check.** At start: template-sourced drivers against their pinned tree hashes (a driver updated through Update… keeps `<name>.old` and is the user's), Wine Mono in every bottle, no ledger settings of programs that are gone, at least 10 GB free. Problems show in the Library with Fix; Fix this game fixes its bottle's first. Putting a driver back asks first and keeps the current copy as `.old`.
+
 ## Sources
 
 **Apple Read Me files** (primary sources on this Mac, quoted verbatim above):

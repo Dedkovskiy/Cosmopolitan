@@ -66,6 +66,7 @@ import Network
     let pathMonitor = NWPathMonitor()
     var launchedDrivers: [String: [String]] = [:]                // the driver set each program last started with (driver fallback)
     var fallbackTried: Set<String> = []                           // programs on their one fallback retry
+    @Published var healthProblems: [HealthProblem] = []           // found by the start-up health check (item 35)
     @Published var artVersion = 0                      // bumped when cover art or playtime files change, so tiles redraw
     var pauseObservers: [NSObjectProtocol] = []        // pause-in-background observers, one per armed game
     @Published var showSetup = false           // first-run setup sheet
@@ -178,6 +179,7 @@ import Network
         checkDriverUpdates()
         if !cliMode { dailyCleanUp(); watchNetwork(); Task.detached(priority: .background) { _ = Model.refreshAwacy(); _ = Model.refreshLudusavi() }   // lists, daily / weekly
             Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in Task { @MainActor in self?.backupBeforeUpdates() } }   // saves before a Steam update
+            runHealthCheck()   // item 35
             watchControllers()   // item 33
             if setupNeeded && UserDefaults.standard.bool(forKey: "onboardingDone") { showSetup = true } }
         autostart()

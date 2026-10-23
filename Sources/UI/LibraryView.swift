@@ -25,6 +25,11 @@ extension ContentView {
                     Button("Dismiss") { m.problem = nil }
                 }
             }
+            if !m.healthProblems.isEmpty {   // item 35: the start-up health check
+                notice("stethoscope", "Cosmopolitan found something to fix: " + m.healthProblems.map(\.text).joined(separator: " ")) {
+                    Button("Fix") { m.fixHealth() }.buttonStyle(.borderedProminent)
+                }
+            }
             if !m.online { notice("wifi.slash", "You're offline. Each game says whether it starts without internet.") { EmptyView() } }
             if hintStep < 3 && !m.library.isEmpty {
                 notice("lightbulb", ["Press Play to start a game. The first start can take a moment while it sets itself up.",

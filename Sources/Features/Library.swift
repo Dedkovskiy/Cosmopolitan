@@ -48,6 +48,7 @@ extension Model {
     // missing graphics component comes back from the pinned template; Apple's toolkit is the user's own step, so its sheet opens.
     func fixGame(_ p: String) {
         let b = bottleOf(p); if b != selected { selected = b; scan() }
+        fixHealth(bottle: b)   // item 35: this bottle's health problems first
         switch gameState(p).fix {
         case .appleToolkit?: askD3DMetal = true
         case .graphics?: restoreMissingDrivers(); readiness[p] = launchNeeds(p)
