@@ -38,9 +38,12 @@ extension Color {
 }
 
 extension View {
-    // The whole window: solid black, dark scheme, hidden title bar so content runs to the top edge. No glass behind content.
+    // The whole window: black frost — the desktop blurred through a heavy black veil (translucent depth, no colour). Dark scheme, hidden
+    // title bar so content runs to the top edge. Content cards stay solid (brief). Goes near-solid under Reduce Transparency.
     func cosmoWindow() -> some View {
-        background(Cosmo.background).background(WindowChrome()).tint(Cosmo.textPrimary).preferredColorScheme(.dark)
+        background {
+            ZStack { BlackFrost(); Cosmo.background.opacity(0.66) }.ignoresSafeArea()
+        }.tint(Cosmo.textPrimary).preferredColorScheme(.dark)
     }
     // A content card / tile: solid surface, 1 px hairline, square. Never glass, never a shadow (brief).
     func cardSurface(_ fill: Color = Cosmo.surface) -> some View {
@@ -51,18 +54,21 @@ extension View {
     func tabularDigits() -> some View { monospacedDigit() }
 }
 
-// Opaque black window with a hidden, transparent title bar.
-private struct WindowChrome: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSView {
-        let v = NSView()
-        DispatchQueue.main.async { [weak v] in
-            guard let w = v?.window else { return }
-            w.isOpaque = true; w.backgroundColor = NSColor(Cosmo.background); w.titlebarAppearsTransparent = true
+// Black frost: a behind-window blur that lets the desktop show through faintly under the black veil. Makes the window see-through and
+// hides the title bar. NSVisualEffectView turns opaque by itself under System Settings › Accessibility › Reduce transparency.
+private struct BlackFrost: NSViewRepresentable {
+    final class V: NSVisualEffectView {
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            guard let w = window else { return }
+            w.isOpaque = false; w.backgroundColor = .clear; w.titlebarAppearsTransparent = true
             w.titleVisibility = .hidden; w.styleMask.insert(.fullSizeContentView)
         }
-        return v
     }
-    func updateNSView(_ v: NSView, context: Context) {}
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let v = V(); v.material = .underWindowBackground; v.blendingMode = .behindWindow; v.state = .active; v.appearance = NSAppearance(named: .darkAqua); return v
+    }
+    func updateNSView(_ v: NSVisualEffectView, context: Context) {}
 }
 
 // MARK: - Buttons
