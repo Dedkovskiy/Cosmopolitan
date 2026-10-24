@@ -20,7 +20,7 @@ extension ContentView {
             }
             if m.busy || m.setupRunning || !m.activity.isEmpty { activityBar }
         }
-        .padding(.horizontal, Cosmo.Space.xxl).padding(.bottom, Cosmo.Space.xl).padding(.top, Cosmo.Space.m)
+        .padding(.horizontal, Cosmo.Space.xxl).padding(.bottom, Cosmo.Space.xl).padding(.top, Cosmo.Space.l)
         .onChange(of: m.busy) { _, b in if !b, m.activity.hasSuffix("…") { m.activity = "" } }
     }
 
@@ -36,7 +36,7 @@ extension ContentView {
                 addGameMenu
                 if showAdvancedOption { CircularGlassButton(systemImage: "slider.horizontal.3", label: "Tools") { advancedMode = true } }
                 CircularGlassButton(systemImage: "gearshape", label: "Settings") { openSettings() }
-            }.padding(.top, Cosmo.Space.s)
+            }.padding(.top, Cosmo.Space.xl).padding(.trailing, Cosmo.Space.s)   // off the top-right edge
         }
     }
 
@@ -85,7 +85,7 @@ extension ContentView {
             cover(p)
             VStack(alignment: .leading, spacing: Cosmo.Space.s) {
                 Text(appName(p)).font(Cosmo.title).foregroundStyle(Cosmo.textPrimary).lineLimit(1)
-                statusLine(p, s)
+                statusLine(p, s).frame(height: 54, alignment: .topLeading)   // uniform status height so cards in a row are even
                 HStack(spacing: Cosmo.Space.s) {
                     Button { m.play(p) } label: { Text("Play") }.buttonStyle(OutlineButtonStyle()).fixedSize().disabled(m.busy || red)
                     if s.word == "Needs a fix" { Button("Fix") { m.fixGame(p) }.buttonStyle(OutlineButtonStyle()).fixedSize().disabled(m.busy) }
@@ -149,7 +149,7 @@ extension ContentView {
     // Full-bleed cover on a #0D0D0D tile, square corners. Launcher logos shown unmodified; game icons centred on the surface, no glow.
     func cover(_ p: String) -> some View {
         let art = m.artPath(p).flatMap { NSImage(contentsOfFile: $0) }, img = Image(nsImage: art ?? m.icons[p] ?? NSWorkspace.shared.icon(for: .applicationBundle))
-        return Color.clear.aspectRatio(art != nil ? 3 / 4 : 1, contentMode: .fit)
+        return Color.clear.aspectRatio(isLauncher(p) ? 1 : 3 / 4, contentMode: .fit)   // one aspect per section: launchers square, games 3:4
             .overlay {
                 if art != nil { img.resizable().interpolation(.high).scaledToFill() }
                 else { img.resizable().interpolation(.high).scaledToFit().padding(Cosmo.Space.l) }
