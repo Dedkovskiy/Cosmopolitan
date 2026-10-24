@@ -22,6 +22,7 @@ struct ContentView: View {
     @State var advancedMode = false
     @State var reasonFor: String? = nil                           // the game whose status reason is shown (click on the status)
     @AppStorage("libraryHints") var hintStep = 0                  // three one-time hints: Play, Add game, the game menu
+    @AppStorage("libraryList") var libraryList = false            // Library view: grid (false) or club-program list (true)
     @AppStorage("onboardingDone") var onboardingDone = false
     @State var showOnboarding = false
     @State var showWhatsNew = false
