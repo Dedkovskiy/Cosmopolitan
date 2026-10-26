@@ -119,7 +119,7 @@ import Network
     // the bar above the programs offers "Restart now" (the user's call) and "Not now" (the change reaches games at Steam's next start).
     func requestSteamRestart(_ why: String) {
         let b = selected
-        guard programs.contains(where: { $0.hasSuffix("/Steam/steam.exe") }), steamRunning(in: b) else { return }
+        guard programs.contains(where: { $0.lowercased().hasSuffix("/steam/steam.exe") }), steamRunning(in: b) else { return }
         if let busy = Model.steamBusy(b) {
             if pendingSteamRestart == nil { let m = "Steam will restart once it's idle (\(busy) now), so \(why).\n"; log += m; logToFile(m) }
             pendingSteamRestart = (b, why, busy)
@@ -135,7 +135,7 @@ import Network
         restartSteam(b, because: why)
     }
     func restartSteam(_ b: String, because why: String) {
-        guard let s = programs.first(where: { $0.hasSuffix("/Steam/steam.exe") }) else { return }
+        guard let s = programs.first(where: { $0.lowercased().hasSuffix("/steam/steam.exe") }) else { return }
         let m = "Restarting Steam so \(why)…\n"; log += m; logToFile(m)
         Task { @MainActor in await stopSteam(b); launch(s) }
     }
@@ -150,7 +150,7 @@ import Network
     // Settings › "Start Steam together with Cosmopolitan" (default on), and AUTOSTART_STEAM=0 in a bottle opts that bottle out.
     func autostartAllowed() -> Bool { (UserDefaults.standard.object(forKey: "autostartSteam") == nil || UserDefaults.standard.bool(forKey: "autostartSteam")) && launchEnvRaw()["AUTOSTART_STEAM"] != "0" }
     func autostart() {   // a bottle with Steam gets Steam started with the app (AUTOSTART_STEAM=0 in cosmopolitan.env opts out)
-        guard !cliMode, autostartAllowed(), let s = programs.first(where: { $0.hasSuffix("/Steam/steam.exe") }) else { return }
+        guard !cliMode, autostartAllowed(), let s = programs.first(where: { $0.lowercased().hasSuffix("/steam/steam.exe") }) else { return }
         launch(s)   // launch() skips it when Steam is already running
     }
     var watchers: [DispatchSourceFileSystemObject] = [], watchedBottle = "", rescanWork: DispatchWorkItem?

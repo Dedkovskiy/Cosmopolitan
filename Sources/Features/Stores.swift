@@ -75,11 +75,12 @@ extension Model {
         }
     }
 
-    // Download the official installer into <bottle>/installers and run it. Battle.net also gets Arial (its UI shows boxes without it)
-    // and its client config set to software rendering before the first start, which is the known fix for a black launcher under Wine.
+    // Download the official installer into <bottle>/drive_c/installers (restricted bottles have no Z:, so installers must live on C:)
+    // and run it. Battle.net also gets Arial (its UI shows boxes without it) and its client config set to software rendering before
+    // the first start, which is the known fix for a black launcher under Wine.
     func installStore(_ s: Store) {
         guard !selected.isEmpty else { log += "Create or select a bottle first.\n"; return }
-        let dir = "\(bottlesDir)/\(selected)/installers"; try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        let dir = "\(bottlesDir)/\(selected)/drive_c/installers"; try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         let dst = "\(dir)/\(s.file)"
         busy = true; log += "Downloading the \(s.rawValue) installer…\n"
         Task.detached {
@@ -91,13 +92,13 @@ extension Model {
                 if s == .steam { self.steamBottleTweaks() }
                 if dst.hasSuffix(".msi") {   // Epic: silent MSI install, nothing to click; the client appears in the grid when msiexec is done
                     self.log += "\(s.rawValue): installing…\n"
-                    self.wine(self.selected, ["msiexec", "/i", "Z:" + dst.replacingOccurrences(of: "/", with: "\\"), "/qn"]) { self.scan() }
+                    self.wine(self.selected, ["msiexec", "/i", self.winPath(dst), "/qn"]) { self.scan() }
                     return
                 }
                 self.log += "\(s.rawValue): follow the installer; the client appears in the grid when it is done.\n"
                 var need = self.prepare(dst)
                 if s == .battlenet, winetricks != nil, !need.verbs.contains("arial") { need.verbs.append("arial") }
-                self.start(need, dst, [], exe: dst, block: true)
+                self.start(need, self.winPath(dst), [], exe: dst, block: true)
             }
         }
     }
